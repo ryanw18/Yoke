@@ -52,6 +52,14 @@ parser = cli.add_training_args(parser=parser)
 parser = cli.add_cosine_lr_scheduler_args(parser=parser)
 parser = cli.add_scheduled_sampling_args(parser=parser)
 
+# ─── DPOT‐style noise parameter ───────────────────────────────────
+parser.add_argument(
+    "--noise_scale",
+    type=float,
+    default=0.0,
+    help="Relative magnitude ε for Gaussian noise injection (e.g. 5e-5).",
+)
+
 # Change some default filepaths.
 parser.set_defaults(
     train_filelist="lsc240420_prefixes_train_80pct.txt",
@@ -183,6 +191,7 @@ if __name__ == "__main__":
             decay_param=args.decay_param,
             minimum_schedule_prob=args.minimum_schedule_prob,
         ),
+        "noise_scale": args.noise_scale,
     }
     if args.continuation or (args.checkpoint is None) or args.only_load_backbone:
         L_loderunner = Lightning_LodeRunner(**lm_kwargs)
