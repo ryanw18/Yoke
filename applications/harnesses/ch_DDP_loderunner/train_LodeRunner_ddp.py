@@ -111,6 +111,7 @@ def main(args, rank, world_size, local_rank, device):
     min_fraction = args.min_fraction
     terminal_steps = args.terminal_steps
     warmup_steps = args.warmup_steps
+    noise_scale = args.noise_scale
 
     # Number of workers controls how batches of data are prefetched and,
     # possibly, pre-loaded onto GPUs. If the number of workers is large they
@@ -157,6 +158,7 @@ def main(args, rank, world_size, local_rank, device):
         "block_structure": block_structure,
         "window_sizes": [(8, 8), (8, 8), (4, 4), (2, 2)],
         "patch_merge_scales": [(2, 2), (2, 2), (2, 2)],
+        "noise_scale": noise_scale,
     }
 
     model = LodeRunner(**model_args)
