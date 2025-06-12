@@ -31,6 +31,14 @@ parser = cli.add_model_args(parser=parser)
 parser = cli.add_training_args(parser=parser)
 parser = cli.add_cosine_lr_scheduler_args(parser=parser)
 
+# ─── DPOT‐style noise parameter ───────────────────────────────────
+parser.add_argument(
+    "--noise_scale",
+    type=float,
+    default=0.0,
+    help="Relative magnitude ε for Gaussian noise injection (e.g. 5e-5).",
+)
+
 # Change some default filepaths.
 parser.set_defaults(
     train_filelist="lsc240420_prefixes_train_80pct.txt",
