@@ -78,6 +78,7 @@ class LodeRunner(nn.Module):
             (2, 2),
             (2, 2),
         ],
+        noise_scale: float = 0.0,
         verbose: bool = False,
     ) -> None:
         """Initialization for class."""
@@ -93,6 +94,7 @@ class LodeRunner(nn.Module):
         self.block_structure = block_structure
         self.window_sizes = window_sizes
         self.patch_merge_scales = patch_merge_scales
+        self.noise_scale = noise_scale
 
         # Validate patch_size, window_sizes, and patch_merge_scales before proceeding.
         valid = validate_patch_and_window(
@@ -170,7 +172,12 @@ class LodeRunner(nn.Module):
         # WARNING!: Most likely the `in_vars` and `out_vars` need to be tensors
         # of integers corresponding to variables in the `default_vars` list.
 
-        # First embed input
+        # DPOT-style noise injection:
+        l2_norm = torch.norm(x, dim=(1, 2, 3), keepdim=True)
+        noise = torch.randn_like(x)
+        x = x + self.noise_scale * l2_norm * noise
+
+        # Embed input
         # varIDXs = self.var_embed_layer.get_var_ids(tuple(in_vars), x.device)
         x = self.parallel_embed(x, in_vars)
 
@@ -229,7 +236,6 @@ class Lightning_LodeRunner(LightningModule):
         scheduler_params: dict = None,
         loss_fn: Callable = nn.MSELoss(reduction="none"),
         scheduled_sampling_scheduler: Callable = lambda global_step: 1.0,
-        noise_scale: float = 0.0,
     ) -> None:
         """Initialization for Lightning wrapper."""
         super().__init__()
@@ -238,7 +244,6 @@ class Lightning_LodeRunner(LightningModule):
         self.scheduler_params = scheduler_params or {}
         self.scheduled_sampling_scheduler = scheduled_sampling_scheduler
         self.loss_fn = loss_fn
-        self.noise_scale = noise_scale
 
         # Register buffers to ensure auto-transfer to devices as needed.
         self.register_buffer("in_vars", in_vars)
@@ -276,28 +281,15 @@ class Lightning_LodeRunner(LightningModule):
         scheduled_prob = self.scheduled_sampling_scheduler(self.current_epoch)
         for k, k_img in enumerate(torch.unbind(img_seq[:, :-1], dim=1)):
             if k == 0:
-                # Forward pass for the initial step (with dpot-style noise injection):
-                # k_img.shape == (B, C, H, W)
-                l2_norm = torch.norm(k_img, dim=(1, 2, 3), keepdim=True)  # → (B,1,1,1)
-                noise = torch.randn_like(k_img)  # → (B,C,H,W)
-                noisy_k_img = k_img.detach() + self.noise_scale * l2_norm * noise
-                # Forward pass on noisy input
-                pred_img = self(noisy_k_img, lead_times)
-
+                # Forward pass for the initial step
+                pred_img = self(k_img, lead_times)
             else:
                 # Apply scheduled sampling
                 if random.random() < scheduled_prob:
                     current_input = k_img
                 else:
                     current_input = pred_img
-
-                # auto-regressive step (With dpot-style noise injection):
-                l2_norm = torch.norm(
-                    current_input, dim=(1, 2, 3), keepdim=True
-                )  # → (B,1,1,1)
-                noise = torch.randn_like(current_input)  # → (B,C,H,W)
-                noisy_input = current_input.detach() + self.noise_scale * l2_norm * noise
-                pred_img = self(noisy_input, lead_times)
+                pred_img = self(current_input, lead_times)
 
             # Store the prediction
             pred_seq.append(pred_img)
