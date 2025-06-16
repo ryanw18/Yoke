@@ -1,7 +1,7 @@
 --studyIDX
 <studyIDX>
 --FILELIST_DIR
-/usr/projects/artimis/mpmm/hickmank/chicoma/ch_yoke/applications/filelists/
+/usr/projects/artimis/mpmm/ryanw/Yoke/applications/filelists/
 --LSC_NPZ_DIR
 /lustre/scratch4/exempt/artimis/lsc240420/
 --train_filelist
