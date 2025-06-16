@@ -124,6 +124,7 @@ if __name__ == "__main__":
         block_structure=tuple(args.block_structure),
         window_sizes=[(2, 2) for _ in range(4)],
         patch_merge_scales=[(2, 2) for _ in range(3)],
+        noise_scale=args.noise_scale,
     )
 
     #############################################
@@ -191,7 +192,6 @@ if __name__ == "__main__":
             decay_param=args.decay_param,
             minimum_schedule_prob=args.minimum_schedule_prob,
         ),
-        "noise_scale": args.noise_scale,
     }
     if args.continuation or (args.checkpoint is None) or args.only_load_backbone:
         L_loderunner = Lightning_LodeRunner(**lm_kwargs)
