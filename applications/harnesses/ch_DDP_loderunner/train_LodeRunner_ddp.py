@@ -132,10 +132,8 @@ def main(args, rank, world_size, local_rank, device):
     checkpoint = args.checkpoint
 
     # Dictionary of available models.
-    available_models = {
-        "LodeRunner": LodeRunner
-    }
-    
+    available_models = {"LodeRunner": LodeRunner}
+
     #############################################
     # Model Arguments for Dynamic Reconstruction
     #############################################
@@ -167,11 +165,7 @@ def main(args, rank, world_size, local_rank, device):
     # Initialize Optimizer
     #############################################
     optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=1e-6,
-        betas=(0.9, 0.999),
-        eps=1e-08,
-        weight_decay=0.01
+        model.parameters(), lr=1e-6, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01
     )
 
     #############################################
@@ -219,7 +213,7 @@ def main(args, rank, world_size, local_rank, device):
     #
     # For single node
     # ddp_anchor_lr = anchor_lr
-    
+
     LRsched = CosineWithWarmupScheduler(
         optimizer,
         anchor_lr=ddp_anchor_lr,
@@ -325,12 +319,12 @@ def main(args, rank, world_size, local_rank, device):
     new_chkpt_path = os.path.join("./", chkpt_name_str.format(studyIDX, epochIDX))
 
     tr.save_model_and_optimizer(
-        model, 
-        optimizer, 
+        model,
+        optimizer,
         epochIDX,
-        new_chkpt_path, 
+        new_chkpt_path,
         model_class=LodeRunner,
-        model_args=model_args
+        model_args=model_args,
     )
 
     if rank == 0:
