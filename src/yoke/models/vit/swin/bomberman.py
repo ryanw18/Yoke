@@ -162,9 +162,10 @@ class LodeRunner(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
-        in_vars: torch.Tensor,
-        out_vars: torch.Tensor,
-        lead_times: torch.Tensor,
+        # text_embeddings=None, (Optional UPS functionality)
+        # in_vars: torch.Tensor,
+        # out_vars: torch.Tensor,
+        # lead_times: torch.Tensor,
     ) -> torch.Tensor:
         """Forward method for LodeRunner."""
         # WARNING!: Most likely the `in_vars` and `out_vars` need to be tensors
@@ -172,19 +173,19 @@ class LodeRunner(nn.Module):
 
         # First embed input
         # varIDXs = self.var_embed_layer.get_var_ids(tuple(in_vars), x.device)
-        x = self.parallel_embed(x, in_vars)
+        # x = self.parallel_embed(x, in_vars)
 
         # Encode variables
-        x = self.var_embed_layer(x, in_vars)
+        # x = self.var_embed_layer(x, in_vars)
 
         # Aggregate variables
-        x = self.agg_vars(x)
+        #  x = self.agg_vars(x)
 
         # Encode patch positions, spatial information
         x = self.pos_embed(x)
 
         # Encode temporal information
-        x = self.temporal_encoding(x, lead_times)
+        # x = self.temporal_encoding(x, lead_times)
 
         # Pass through SWIN-V2 U-Net encoder
         x = self.unet(x)
@@ -197,9 +198,9 @@ class LodeRunner(nn.Module):
 
         # Select only entries corresponding to out_vars for loss
         # out_var_ids = self.var_embed_layer.get_var_ids(tuple(out_vars), x.device)
-        preds = x[:, out_vars]
+        # preds = x[:, out_vars]
 
-        return preds
+        return x
 
 
 class Lightning_LodeRunner(LightningModule):

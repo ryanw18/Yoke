@@ -12,6 +12,7 @@ from yoke.datasets.lsc_dataset import LSC_rho2rho_temporal_DataSet
 import yoke.torch_training_utils as tr
 from yoke.lr_schedulers import CosineWithWarmupScheduler
 from yoke.helpers import cli
+from yoke.datasets.ups_dataset import UNetDatasetSingle
 
 
 #############################################
@@ -123,10 +124,8 @@ def main(args, rank, world_size, local_rank, device):
     checkpoint = args.checkpoint
 
     # Dictionary of available models.
-    available_models = {
-        "LodeRunner": LodeRunner
-    }
-    
+    available_models = {"LodeRunner": LodeRunner}
+
     #############################################
     # Model Arguments for Dynamic Reconstruction
     #############################################
@@ -157,11 +156,7 @@ def main(args, rank, world_size, local_rank, device):
     # Initialize Optimizer
     #############################################
     optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=1e-6,
-        betas=(0.9, 0.999),
-        eps=1e-08,
-        weight_decay=0.01
+        model.parameters(), lr=1e-6, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01
     )
 
     #############################################
@@ -223,20 +218,42 @@ def main(args, rank, world_size, local_rank, device):
     #############################################
     # Data Initialization (Distributed Dataloader)
     #############################################
-    train_dataset = LSC_rho2rho_temporal_DataSet(
-        args.LSC_NPZ_DIR,
-        file_prefix_list=train_filelist,
-        max_timeIDX_offset=2,
-        max_file_checks=10,
-        half_image=True,
+    train_dataset = UNetDatasetSingle(
+        filename="1D_Burgers_Sols_Nu0.001.hdf5",  # or another file you have
+        saved_folder="datasets",  # or the correct base directory
+        reduced_resolution=8,
+        reduced_resolution_t=5,
+        reduced_batch=1,
+        prev_t=1,
+        if_test=False,
+        size="base",
     )
-    val_dataset = LSC_rho2rho_temporal_DataSet(
-        args.LSC_NPZ_DIR,
-        file_prefix_list=validation_filelist,
-        max_timeIDX_offset=2,
-        max_file_checks=10,
-        half_image=True,
+    # train_dataset = LSC_rho2rho_temporal_DataSet(
+    #     args.LSC_NPZ_DIR,
+    #     file_prefix_list=train_filelist,
+    #     max_timeIDX_offset=2,
+    #     max_file_checks=10,
+    #     half_image=True,
+    # )
+
+    val_dataset = UNetDatasetSingle(
+        filename="1D_Burgers_Sols_Nu0.001.hdf5",
+        saved_folder="datasets",
+        reduced_resolution=8,
+        reduced_resolution_t=5,
+        reduced_batch=1,
+        prev_t=1,
+        if_test=True,
+        size="base",
     )
+
+    # val_dataset = LSC_rho2rho_temporal_DataSet(
+    #     args.LSC_NPZ_DIR,
+    #     file_prefix_list=validation_filelist,
+    #     max_timeIDX_offset=2,
+    #     max_file_checks=10,
+    #     half_image=True,
+    # )
 
     # NOTE: For DDP the batch_size is the per-GPU batch_size!!!
     train_dataloader = tr.make_distributed_dataloader(
@@ -315,12 +332,12 @@ def main(args, rank, world_size, local_rank, device):
     new_chkpt_path = os.path.join("./", chkpt_name_str.format(studyIDX, epochIDX))
 
     tr.save_model_and_optimizer(
-        model, 
-        optimizer, 
+        model,
+        optimizer,
         epochIDX,
-        new_chkpt_path, 
+        new_chkpt_path,
         model_class=LodeRunner,
-        model_args=model_args
+        model_args=model_args,
     )
 
     if rank == 0:

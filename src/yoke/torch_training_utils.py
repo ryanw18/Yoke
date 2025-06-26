@@ -193,25 +193,18 @@ def load_model_and_optimizer_hdf5(model, optimizer, filepath):
 ###############################################
 # Save and Load relying on torch checkpointing.
 ###############################################
-def save_model_and_optimizer(
-        model, 
-        optimizer, 
-        epoch, 
-        filepath, 
-        model_class, 
-        model_args
-        ):
+def save_model_and_optimizer(model, optimizer, epoch, filepath, model_class, model_args):
     """Class-aware torch checkpointing.
 
     Saves model & optimizer state along with model-class information using torch.save.
-     
+
     Works for both DDP and non-DDP training. Model's saved in this way should not be
-    considered *deployable*. For deployment the model should be converted to ONNX 
+    considered *deployable*. For deployment the model should be converted to ONNX
     format.
-    
+
     - Stores the model's class name and initialization args.
     - Works for both DDP and non-DDP training.
-    - If model is wrapped in DDP (`model.module` exists), saves 
+    - If model is wrapped in DDP (`model.module` exists), saves
       `model.module.state_dict()`.
     - If model is NOT using DDP, saves `model.state_dict()`.
     - Moves model and optimizer to CPU to avoid CUDA-specific issues.
@@ -228,7 +221,7 @@ def save_model_and_optimizer(
     """
 
     is_ddp = isinstance(model, nn.parallel.DistributedDataParallel)
-    
+
     # Get rank if in DDP, else assume single process
     if dist.is_initialized():
         save_rank = dist.get_rank()
@@ -249,11 +242,11 @@ def save_model_and_optimizer(
                     state[key] = value.to("cpu")
 
         checkpoint = {
-            'epoch': epoch,
-            'model_class': model_class.__name__,  # Store model class as a string
-            'model_args': model_args,  # Store model init arguments
-            'model_state_dict': model_cpu.state_dict(),
-            'optimizer_state_dict': optimizer_cpu
+            "epoch": epoch,
+            "model_class": model_class.__name__,  # Store model class as a string
+            "model_args": model_args,  # Store model init arguments
+            "model_state_dict": model_cpu.state_dict(),
+            "optimizer_state_dict": optimizer_cpu,
         }
 
         torch.save(checkpoint, filepath)
@@ -267,7 +260,7 @@ def save_model_and_optimizer(
 def load_model_and_optimizer(filepath, optimizer, available_models, device="cuda"):
     """Dynamically load model & optimizer state from checkpoint.
 
-    NOTE: This function only works while loading checkpoints created by 
+    NOTE: This function only works while loading checkpoints created by
     `save_model_and_optimizer`
 
     - Working for both DDP and non-DDP training.
@@ -292,9 +285,9 @@ def load_model_and_optimizer(filepath, optimizer, available_models, device="cuda
     checkpoint = None
 
     if load_rank == 0:
-        checkpoint = torch.load(filepath, map_location='cpu', weights_only=False)
-        epochIDX = checkpoint['epoch']
-        print(f'[Rank {load_rank}] Loaded checkpoint from epoch {epochIDX}')
+        checkpoint = torch.load(filepath, map_location="cpu", weights_only=False)
+        epochIDX = checkpoint["epoch"]
+        print(f"[Rank {load_rank}] Loaded checkpoint from epoch {epochIDX}")
 
     # If in DDP, broadcast checkpoint to all ranks
     if dist.is_initialized():
@@ -303,20 +296,21 @@ def load_model_and_optimizer(filepath, optimizer, available_models, device="cuda
         checkpoint = checkpoint_list[0]  # Unpack checkpoint on all ranks
 
     # Retrieve model class and arguments
-    model_class_name = checkpoint['model_class']
-    model_args = checkpoint['model_args']
+    model_class_name = checkpoint["model_class"]
+    model_args = checkpoint["model_args"]
 
     # Ensure model class exists
     if model_class_name not in available_models:
-        raise ValueError((f"Unknown model class: {model_class_name}. "
-                           "Add it to `available_models`."))
+        raise ValueError(
+            (f"Unknown model class: {model_class_name}. Add it to `available_models`.")
+        )
 
     # Dynamically create the model
     model = available_models[model_class_name](**model_args)
 
     # Load state
-    model.load_state_dict(checkpoint['model_state_dict'])
-    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    model.load_state_dict(checkpoint["model_state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
     # Move model to GPU if necessary
     model.to(device)
@@ -325,20 +319,15 @@ def load_model_and_optimizer(filepath, optimizer, available_models, device="cuda
     if dist.is_initialized():
         dist.barrier()
 
-    return model, checkpoint['epoch']
+    return model, checkpoint["epoch"]
 
 
 ####################################
 # Make Dataloader from DataSet
 ####################################
 def make_distributed_dataloader(
-        dataset,
-        batch_size,
-        shuffle,
-        num_workers,
-        rank,
-        world_size
-    ) -> torch.utils.data.DataLoader:
+    dataset, batch_size, shuffle, num_workers, rank, world_size
+) -> torch.utils.data.DataLoader:
     """Creates a DataLoader with a DistributedSampler.
 
     Args:
@@ -358,7 +347,7 @@ def make_distributed_dataloader(
         num_replicas=world_size,
         rank=rank,
         shuffle=shuffle,
-        )
+    )
 
     pin_memory = True if torch.cuda.is_available() else False
 
@@ -369,7 +358,7 @@ def make_distributed_dataloader(
         drop_last=True,  # Ensures uniform batch size
         num_workers=num_workers,
         pin_memory=pin_memory,
-        prefetch_factor=2
+        prefetch_factor=2,
     )
 
 
@@ -470,10 +459,8 @@ def append_to_dict(dictt: dict, batch_ID: int, truth, pred, loss):
 # Continue Study with restart
 ####################################
 def continuation_setup(
-        checkpointpath: str,
-        studyIDX: int,
-        last_epoch: int,
-        submissionType: str = 'slurm') -> str:
+    checkpointpath: str, studyIDX: int, last_epoch: int, submissionType: str = "slurm"
+) -> str:
     """Modify template submission files for training restart.
 
     Function to generate the training.input and training.slurm files for
@@ -508,7 +495,7 @@ def continuation_setup(
         f.write(new_training_input_data)
 
     # Choose job-scheduling system
-    if submissionType.lower() == 'slurm':
+    if submissionType.lower() == "slurm":
         training_slurm_tmpl = "./training_slurm.tmpl"
 
         with open(training_slurm_tmpl) as f:
@@ -528,7 +515,7 @@ def continuation_setup(
         with open(os.path.join("./", new_training_filepath), "w") as f:
             f.write(new_training_slurm_data)
 
-    if submissionType.lower() == 'flux':
+    if submissionType.lower() == "flux":
         training_flux_tmpl = "./training_flux.tmpl"
 
         with open(training_flux_tmpl) as f:
@@ -548,7 +535,7 @@ def continuation_setup(
         with open(os.path.join("./", new_training_filepath), "w") as f:
             f.write(new_training_flux_data)
 
-    elif submissionType.lower() == 'shell':
+    elif submissionType.lower() == "shell":
         training_shell_tmpl = "./training_shell.tmpl"
 
         with open(training_shell_tmpl) as f:
@@ -575,11 +562,12 @@ def continuation_setup(
 # Training on a Datastep
 ####################################
 def train_scalar_datastep(
-        data: tuple,
-        model: torch.nn.Module,
-        optimizer: torch.optim.Optimizer,
-        loss_fn: torch.nn.Module,
-        device: torch.device) -> tuple:
+    data: tuple,
+    model: torch.nn.Module,
+    optimizer: torch.optim.Optimizer,
+    loss_fn: torch.nn.Module,
+    device: torch.device,
+) -> tuple:
     """Function to complete a training step on a single sample.
 
     For this training step the network's output is a scalar.
@@ -659,13 +647,8 @@ def train_array_datastep(data: tuple, model, optimizer, loss_fn, device: torch.d
 
 
 def train_loderunner_datastep(
-        data: tuple,
-        model,
-        optimizer,
-        loss_fn,
-        device: torch.device,
-        channel_map: list
-        ):
+    data: tuple, model, optimizer, loss_fn, device: torch.device, channel_map: list
+):
     """A training step for which the data is of multi-input, multi-output type.
 
     This is currently a proto-type function to get the LodeRunner architecture
@@ -825,34 +808,35 @@ def train_DDP_loderunner_datastep(
 ):
     """A DDP-compatible training step for multi-input, multi-output data.
 
-        Args:
-        data (tuple): tuple of model input, corresponding ground truth, and lead time
-        model (loaded pytorch model): model to train
-        optimizer (torch.optim): optimizer for training set
-        loss_fn (torch.nn Loss Function): loss function for training set
-        device (torch.device): device index to select
-        rank (int): Rank of device
-        world_size (int): Number of total DDP processes
+    Args:
+    data (tuple): tuple of model input, corresponding ground truth, and lead time
+    model (loaded pytorch model): model to train
+    optimizer (torch.optim): optimizer for training set
+    loss_fn (torch.nn Loss Function): loss function for training set
+    device (torch.device): device index to select
+    rank (int): Rank of device
+    world_size (int): Number of total DDP processes
 
     """
     # Set model to train mode
     model.train()
 
     # Extract data
-    start_img, end_img, Dt = data
+    (start_img, text_embed), (end_img, mask_img) = data
     start_img = start_img.to(device, non_blocking=True)
-    Dt = Dt.to(device, non_blocking=True)
+    text_embed = text_embed.to(device, non_blocking=True)
     end_img = end_img.to(device, non_blocking=True)
+    mask_img = mask_img.to(device, non_blocking=True)
 
     # Fixed input and output variable indices
     in_vars = torch.tensor([0, 1, 2, 3, 4, 5, 6, 7]).to(device, non_blocking=True)
     out_vars = torch.tensor([0, 1, 2, 3, 4, 5, 6, 7]).to(device, non_blocking=True)
 
     # Forward pass
-    pred_img = model(start_img, in_vars, out_vars, Dt)
+    pred_img = model(start_img, text_embeddings=text_embed)
 
     # Compute loss
-    loss = loss_fn(pred_img, end_img)
+    loss = loss_fn(pred_img, end_img, mask=mask_img)
     per_sample_loss = loss.mean(dim=[1, 2, 3])  # Per-sample loss
 
     # Backward pass and optimization
@@ -877,12 +861,7 @@ def train_DDP_loderunner_datastep(
     return end_img, pred_img, all_losses
 
 
-def train_loderunner_fabric_datastep(
-        fabric,
-        data: tuple,
-        model,
-        optimizer,
-        loss_fn):
+def train_loderunner_fabric_datastep(fabric, data: tuple, model, optimizer, loss_fn):
     """A training step for which the data is of multi-input, multi-output type.
 
     This is currently a proto-type function to get the LodeRunner architecture
@@ -1018,11 +997,8 @@ def eval_array_datastep(data: tuple, model, loss_fn, device: torch.device):
 
 
 def eval_loderunner_datastep(
-        data: tuple,
-        model,
-        loss_fn,
-        device: torch.device,
-        channel_map: list):
+    data: tuple, model, loss_fn, device: torch.device, channel_map: list
+):
     """An evaluation step for which the data is of multi-input, multi-output type.
 
     This is currently a proto-type function to get the LodeRunner architecture
@@ -1088,12 +1064,8 @@ def eval_loderunner_datastep(
 
 
 def eval_scheduled_loderunner_datastep(
-        data: tuple,
-        model,
-        optimizer,
-        loss_fn,
-        device: torch.device,
-        scheduled_prob: float):
+    data: tuple, model, optimizer, loss_fn, device: torch.device, scheduled_prob: float
+):
     """
     A training step for the LodeRunner architecture with scheduled sampling
     using a decayed scheduled_prob.
@@ -1221,11 +1193,7 @@ def eval_DDP_loderunner_datastep(
     return end_img, pred_img, all_losses
 
 
-def eval_loderunner_fabric_datastep(
-        fabric,
-        data: tuple,
-        model,
-        loss_fn):
+def eval_loderunner_fabric_datastep(fabric, data: tuple, model, loss_fn):
     """An evaluation step for which the data is of multi-input, multi-output type.
 
     This is currently a proto-type function to get the LodeRunner architecture
@@ -1508,11 +1476,13 @@ def train_array_csv_epoch(
             )
 
             # Save batch records to the training record file
-            batch_records = np.column_stack([
-                np.full(len(train_losses), epochIDX),
-                np.full(len(train_losses), trainbatch_ID),
-                train_losses.detach().cpu().numpy().flatten()
-            ])
+            batch_records = np.column_stack(
+                [
+                    np.full(len(train_losses), epochIDX),
+                    np.full(len(train_losses), trainbatch_ID),
+                    train_losses.detach().cpu().numpy().flatten(),
+                ]
+            )
             np.savetxt(train_rcrd_file, batch_records, fmt="%d, %d, %.8f")
 
     # Evaluate on all validation samples
@@ -1528,11 +1498,13 @@ def train_array_csv_epoch(
                     )
 
                     # Save validation batch records
-                    batch_records = np.column_stack([
-                        np.full(len(val_losses), epochIDX),
-                        np.full(len(val_losses), valbatch_ID),
-                        val_losses.detach().cpu().numpy().flatten()
-                    ])
+                    batch_records = np.column_stack(
+                        [
+                            np.full(len(val_losses), epochIDX),
+                            np.full(len(val_losses), valbatch_ID),
+                            val_losses.detach().cpu().numpy().flatten(),
+                        ]
+                    )
                     np.savetxt(val_rcrd_file, batch_records, fmt="%d, %d, %.8f")
 
     return
@@ -1550,7 +1522,7 @@ def train_simple_loderunner_epoch(
     train_rcrd_filename: str,
     val_rcrd_filename: str,
     device: torch.device,
-    verbose: bool=False,
+    verbose: bool = False,
 ):
     """Function to complete a training epoch on the LodeRunner architecture with
     fixed channels in the input and output. Training and validation information
@@ -1594,26 +1566,30 @@ def train_simple_loderunner_epoch(
             if verbose:
                 endTime = time.time()
                 batch_time = endTime - startTime
-                print(f"Batch {trainbatch_ID} time (seconds): {batch_time:.5f}",
-                      flush=True)
+                print(
+                    f"Batch {trainbatch_ID} time (seconds): {batch_time:.5f}", flush=True
+                )
 
             if verbose:
                 startTime = time.time()
 
             # Stack loss record and write using numpy
-            batch_records = np.column_stack([
-                np.full(train_batchsize, epochIDX),
-                np.full(train_batchsize, trainbatch_ID),
-                train_loss.detach().cpu().numpy().flatten()
-            ])
+            batch_records = np.column_stack(
+                [
+                    np.full(train_batchsize, epochIDX),
+                    np.full(train_batchsize, trainbatch_ID),
+                    train_loss.detach().cpu().numpy().flatten(),
+                ]
+            )
 
             np.savetxt(train_rcrd_file, batch_records, fmt="%d, %d, %.8f")
 
             if verbose:
                 endTime = time.time()
                 record_time = endTime - startTime
-                print(f"Batch {trainbatch_ID} record time: {record_time:.5f}",
-                      flush=True)
+                print(
+                    f"Batch {trainbatch_ID} record time: {record_time:.5f}", flush=True
+                )
 
             # Explictly delete produced tensors to free memory
             del truth
@@ -1636,11 +1612,13 @@ def train_simple_loderunner_epoch(
                     )
 
                     # Stack loss record and write using numpy
-                    batch_records = np.column_stack([
-                        np.full(val_batchsize, epochIDX),
-                        np.full(val_batchsize, valbatch_ID),
-                        val_loss.detach().cpu().numpy().flatten()
-                    ])
+                    batch_records = np.column_stack(
+                        [
+                            np.full(val_batchsize, epochIDX),
+                            np.full(val_batchsize, valbatch_ID),
+                            val_loss.detach().cpu().numpy().flatten(),
+                        ]
+                    )
 
                     np.savetxt(val_rcrd_file, batch_records, fmt="%d, %d, %.8f")
 
@@ -1705,18 +1683,20 @@ def train_scheduled_loderunner_epoch(
                 optimizer=optimizer,
                 loss_fn=loss_fn,
                 device=device,
-                scheduled_prob=scheduled_prob
+                scheduled_prob=scheduled_prob,
             )
 
             # Increment the learning-rate scheduler
             LRsched.step()
 
             # Save batch records to the training record file
-            batch_records = np.column_stack([
-                np.full(len(train_losses), epochIDX),
-                np.full(len(train_losses), trainbatch_ID),
-                train_losses.detach().cpu().numpy().flatten()
-            ])
+            batch_records = np.column_stack(
+                [
+                    np.full(len(train_losses), epochIDX),
+                    np.full(len(train_losses), trainbatch_ID),
+                    train_losses.detach().cpu().numpy().flatten(),
+                ]
+            )
             np.savetxt(train_rcrd_file, batch_records, fmt="%d, %d, %.8f")
 
             # Clear memory
@@ -1737,15 +1717,17 @@ def train_scheduled_loderunner_epoch(
                         optimizer=optimizer,
                         loss_fn=loss_fn,
                         device=device,
-                        scheduled_prob=scheduled_prob
+                        scheduled_prob=scheduled_prob,
                     )
 
                     # Save validation batch records
-                    batch_records = np.column_stack([
-                        np.full(len(val_losses), epochIDX),
-                        np.full(len(val_losses), valbatch_ID),
-                        val_losses.detach().cpu().numpy().flatten()
-                    ])
+                    batch_records = np.column_stack(
+                        [
+                            np.full(len(val_losses), epochIDX),
+                            np.full(len(val_losses), valbatch_ID),
+                            val_losses.detach().cpu().numpy().flatten(),
+                        ]
+                    )
                     np.savetxt(val_rcrd_file, batch_records, fmt="%d, %d, %.8f")
 
                     # Clear memory
@@ -1769,7 +1751,7 @@ def train_LRsched_loderunner_epoch(
     train_rcrd_filename: str,
     val_rcrd_filename: str,
     device: torch.device,
-    verbose: bool=False,
+    verbose: bool = False,
 ):
     """Function to complete a training epoch on the LodeRunner architecture with
     fixed channels in the input and output. Training and validation information
@@ -1818,26 +1800,30 @@ def train_LRsched_loderunner_epoch(
             if verbose:
                 endTime = time.time()
                 batch_time = endTime - startTime
-                print(f"Batch {trainbatch_ID} time (seconds): {batch_time:.5f}",
-                      flush=True)
+                print(
+                    f"Batch {trainbatch_ID} time (seconds): {batch_time:.5f}", flush=True
+                )
 
             if verbose:
                 startTime = time.time()
 
             # Stack loss record and write using numpy
-            batch_records = np.column_stack([
-                np.full(train_batchsize, epochIDX),
-                np.full(train_batchsize, trainbatch_ID),
-                train_loss.detach().cpu().numpy().flatten()
-            ])
+            batch_records = np.column_stack(
+                [
+                    np.full(train_batchsize, epochIDX),
+                    np.full(train_batchsize, trainbatch_ID),
+                    train_loss.detach().cpu().numpy().flatten(),
+                ]
+            )
 
             np.savetxt(train_rcrd_file, batch_records, fmt="%d, %d, %.8f")
 
             if verbose:
                 endTime = time.time()
                 record_time = endTime - startTime
-                print(f"Batch {trainbatch_ID} record time: {record_time:.5f}",
-                      flush=True)
+                print(
+                    f"Batch {trainbatch_ID} record time: {record_time:.5f}", flush=True
+                )
 
             # Explictly delete produced tensors to free memory
             del truth
@@ -1860,11 +1846,13 @@ def train_LRsched_loderunner_epoch(
                     )
 
                     # Stack loss record and write using numpy
-                    batch_records = np.column_stack([
-                        np.full(val_batchsize, epochIDX),
-                        np.full(val_batchsize, valbatch_ID),
-                        val_loss.detach().cpu().numpy().flatten()
-                    ])
+                    batch_records = np.column_stack(
+                        [
+                            np.full(val_batchsize, epochIDX),
+                            np.full(val_batchsize, valbatch_ID),
+                            val_loss.detach().cpu().numpy().flatten(),
+                        ]
+                    )
 
                     np.savetxt(val_rcrd_file, batch_records, fmt="%d, %d, %.8f")
 
@@ -1926,7 +1914,9 @@ def train_DDP_loderunner_epoch(
     # Training loop
     model.train()
     train_rcrd_filename = train_rcrd_filename.replace("<epochIDX>", f"{epochIDX:04d}")
-    with open(train_rcrd_filename, "a") if rank == 0 else nullcontext() as train_rcrd_file:
+    with (
+        open(train_rcrd_filename, "a") if rank == 0 else nullcontext() as train_rcrd_file
+    ):
         for trainbatch_ID, traindata in enumerate(training_data):
             # Stop when number of training batches is reached
             if trainbatch_ID >= num_train_batches:
@@ -1942,11 +1932,13 @@ def train_DDP_loderunner_epoch(
 
             # Save training record (rank 0 only)
             if rank == 0:
-                batch_records = np.column_stack([
-                    np.full(len(train_losses), epochIDX),
-                    np.full(len(train_losses), trainbatch_ID),
-                    train_losses.cpu().numpy().flatten()
-                ])
+                batch_records = np.column_stack(
+                    [
+                        np.full(len(train_losses), epochIDX),
+                        np.full(len(train_losses), trainbatch_ID),
+                        train_losses.cpu().numpy().flatten(),
+                    ]
+                )
                 np.savetxt(train_rcrd_file, batch_records, fmt="%d, %d, %.8f")
 
             # Free memory
@@ -1958,7 +1950,9 @@ def train_DDP_loderunner_epoch(
         print("Validating...", epochIDX)
         val_rcrd_filename = val_rcrd_filename.replace("<epochIDX>", f"{epochIDX:04d}")
         model.eval()
-        with open(val_rcrd_filename, "a") if rank == 0 else nullcontext() as val_rcrd_file:
+        with (
+            open(val_rcrd_filename, "a") if rank == 0 else nullcontext() as val_rcrd_file
+        ):
             with torch.no_grad():
                 for valbatch_ID, valdata in enumerate(validation_data):
                     # Stop when number of training batches is reached
@@ -1966,16 +1960,23 @@ def train_DDP_loderunner_epoch(
                         break
 
                     end_img, pred_img, val_losses = eval_DDP_loderunner_datastep(
-                        valdata, model, loss_fn, device, rank, world_size,
+                        valdata,
+                        model,
+                        loss_fn,
+                        device,
+                        rank,
+                        world_size,
                     )
 
                     # Save validation record (rank 0 only)
                     if rank == 0:
-                        batch_records = np.column_stack([
-                            np.full(len(val_losses), epochIDX),
-                            np.full(len(val_losses), valbatch_ID),
-                            val_losses.cpu().numpy().flatten()
-                        ])
+                        batch_records = np.column_stack(
+                            [
+                                np.full(len(val_losses), epochIDX),
+                                np.full(len(val_losses), valbatch_ID),
+                                val_losses.cpu().numpy().flatten(),
+                            ]
+                        )
                         np.savetxt(val_rcrd_file, batch_records, fmt="%d, %d, %.8f")
 
                     # Free memory
@@ -2027,7 +2028,11 @@ def train_fabric_loderunner_epoch(
             trainbatch_ID += 1
 
             truth, pred, train_losses = train_loderunner_fabric_datastep(
-                fabric, traindata, model, optimizer, loss_fn,
+                fabric,
+                traindata,
+                model,
+                optimizer,
+                loss_fn,
             )
 
             # Increment the learning-rate scheduler
@@ -2035,11 +2040,13 @@ def train_fabric_loderunner_epoch(
 
             if fabric.global_rank == 0:
                 # Stack loss record and write using numpy
-                batch_records = np.column_stack([
-                    np.full(len(train_losses), epochIDX),
-                    np.full(len(train_losses), trainbatch_ID),
-                    train_losses.detach().cpu().numpy().flatten()
-                ])
+                batch_records = np.column_stack(
+                    [
+                        np.full(len(train_losses), epochIDX),
+                        np.full(len(train_losses), trainbatch_ID),
+                        train_losses.detach().cpu().numpy().flatten(),
+                    ]
+                )
                 np.savetxt(train_rcrd_file, batch_records, fmt="%d, %d, %.8f")
 
             # Explictly delete produced tensors to free memory
@@ -2059,16 +2066,21 @@ def train_fabric_loderunner_epoch(
                 for valdata in validation_data:
                     valbatch_ID += 1
                     truth, pred, val_losses = eval_loderunner_fabric_datastep(
-                        fabric, valdata, model, loss_fn,
+                        fabric,
+                        valdata,
+                        model,
+                        loss_fn,
                     )
 
                     if fabric.global_rank == 0:
                         # Stack loss record and write using numpy
-                        batch_records = np.column_stack([
-                            np.full(len(val_losses), epochIDX),
-                            np.full(len(val_losses), valbatch_ID),
-                            val_losses.detach().cpu().numpy().flatten()
-                        ])
+                        batch_records = np.column_stack(
+                            [
+                                np.full(len(val_losses), epochIDX),
+                                np.full(len(val_losses), valbatch_ID),
+                                val_losses.detach().cpu().numpy().flatten(),
+                            ]
+                        )
                         np.savetxt(val_rcrd_file, batch_records, fmt="%d, %d, %.8f")
 
                     # Explictly delete produced tensors to free memory
@@ -2114,7 +2126,7 @@ def train_lsc_policy_datastep(
     # Forward pass
     pred_distribution = model(state_y, stateH, targetH)
     pred_mean = pred_distribution.mean
-    
+
     # Compute loss
     loss = loss_fn(pred_mean, x_true)
     per_sample_loss = loss.mean(dim=1)  # Per-sample loss
@@ -2169,7 +2181,7 @@ def eval_lsc_policy_datastep(
     # Forward pass
     with torch.no_grad():
         pred_distribution = model(state_y, stateH, targetH)
-        
+
     pred_mean = pred_distribution.mean
 
     # Compute loss
@@ -2238,7 +2250,9 @@ def train_lsc_policy_epoch(
     # Training loop
     model.train()
     train_rcrd_filename = train_rcrd_filename.replace("<epochIDX>", f"{epochIDX:04d}")
-    with open(train_rcrd_filename, "a") if rank == 0 else nullcontext() as train_rcrd_file:
+    with (
+        open(train_rcrd_filename, "a") if rank == 0 else nullcontext() as train_rcrd_file
+    ):
         for trainbatch_ID, traindata in enumerate(training_data):
             # Stop when number of training batches is reached
             if trainbatch_ID >= num_train_batches:
@@ -2254,11 +2268,13 @@ def train_lsc_policy_epoch(
 
             # Save training record (rank 0 only)
             if rank == 0:
-                batch_records = np.column_stack([
-                    np.full(len(train_losses), epochIDX),
-                    np.full(len(train_losses), trainbatch_ID),
-                    train_losses.cpu().numpy().flatten()
-                ])
+                batch_records = np.column_stack(
+                    [
+                        np.full(len(train_losses), epochIDX),
+                        np.full(len(train_losses), trainbatch_ID),
+                        train_losses.cpu().numpy().flatten(),
+                    ]
+                )
                 np.savetxt(train_rcrd_file, batch_records, fmt="%d, %d, %.8f")
 
     # Validation loop
@@ -2266,7 +2282,9 @@ def train_lsc_policy_epoch(
         print("Validating...", epochIDX)
         val_rcrd_filename = val_rcrd_filename.replace("<epochIDX>", f"{epochIDX:04d}")
         model.eval()
-        with open(val_rcrd_filename, "a") if rank == 0 else nullcontext() as val_rcrd_file:
+        with (
+            open(val_rcrd_filename, "a") if rank == 0 else nullcontext() as val_rcrd_file
+        ):
             with torch.no_grad():
                 for valbatch_ID, valdata in enumerate(validation_data):
                     # Stop when number of training batches is reached
@@ -2274,14 +2292,21 @@ def train_lsc_policy_epoch(
                         break
 
                     x_true, pred_mean, val_losses = eval_lsc_policy_datastep(
-                        valdata, model, loss_fn, device, rank, world_size,
+                        valdata,
+                        model,
+                        loss_fn,
+                        device,
+                        rank,
+                        world_size,
                     )
 
                     # Save validation record (rank 0 only)
                     if rank == 0:
-                        batch_records = np.column_stack([
-                            np.full(len(val_losses), epochIDX),
-                            np.full(len(val_losses), valbatch_ID),
-                            val_losses.cpu().numpy().flatten()
-                        ])
+                        batch_records = np.column_stack(
+                            [
+                                np.full(len(val_losses), epochIDX),
+                                np.full(len(val_losses), valbatch_ID),
+                                val_losses.cpu().numpy().flatten(),
+                            ]
+                        )
                         np.savetxt(val_rcrd_file, batch_records, fmt="%d, %d, %.8f")
