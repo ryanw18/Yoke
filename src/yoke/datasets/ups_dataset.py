@@ -178,6 +178,7 @@ class UNetDatasetSingle(Dataset):
         test_ratio=0.1,
         prev_t=1,
         size="base",
+        dataset="Burgers",
     ):
         """
 
@@ -189,7 +190,7 @@ class UNetDatasetSingle(Dataset):
         """
         self.prev_t = prev_t
         self.if_test = if_test
-        # Define path to files
+        self.dataset = dataset
         root_path = os.path.abspath(saved_folder + "/" + filename)
 
         if filename[-2:] == "h5":
@@ -202,7 +203,7 @@ class UNetDatasetSingle(Dataset):
         text_path = os.path.abspath(
             saved_folder
             + "/mixed_data_train/"
-            + dataset
+            + self.dataset
             + ("/" + size + "_embeddings.npy")
         )
         try:
@@ -578,6 +579,9 @@ class UNetDatasetSingle(Dataset):
             print("2d->2d", self.x.shape, self.grid.shape, self.mask.shape)
 
         self.grid = torch.stack([self.grid] * self.x.shape[0])
+        self.y = self.x[:, 1:]
+        self.x = self.x[:, :-1]
+        self.mask = self.mask[:, 1:]
         try:
             self.embeddings = torch.cat([self.embeddings] * len(self.x))
         except:
@@ -599,7 +603,8 @@ class UNetDatasetSingle(Dataset):
         return len(self.x)
 
     def __getitem__(self, idx):
-        return (self.x[idx], self.embeddings[idx]), (self.y[idx], self.mask[idx])
+        x = torch.cat([self.x[idx], self.grid[0]], dim=0)  # grid[0] is shape [1, H, W]
+        return (x, self.embeddings[idx]), (self.y[idx], self.mask[idx])
 
 
 if __name__ == "__main__":

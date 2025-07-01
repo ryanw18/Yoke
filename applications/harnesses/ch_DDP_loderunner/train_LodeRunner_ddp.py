@@ -13,6 +13,7 @@ import yoke.torch_training_utils as tr
 from yoke.lr_schedulers import CosineWithWarmupScheduler
 from yoke.helpers import cli
 from yoke.datasets.ups_dataset import UNetDatasetSingle
+from yoke.helpers.masked_MSE_loss import MaskedMSELoss
 
 
 #############################################
@@ -163,7 +164,9 @@ def main(args, rank, world_size, local_rank, device):
     # Initialize Loss
     #############################################
     # Use `reduction='none'` so loss on each sample in batch can be recorded.
-    loss_fn = nn.MSELoss(reduction="none")
+
+    # loss_fn = nn.MSELoss(reduction="none")
+    loss_fn = MaskedMSELoss()
 
     #############################################
     # Load Model for Continuation (Rank 0 only)
