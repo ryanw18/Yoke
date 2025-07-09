@@ -13,7 +13,7 @@
 #SBATCH --job-name=ddp_s<studyIDX>_e0001
 #SBATCH --account=w25_artimis_g
 #SBATCH --partition=gpu
-#SBATCH --time=0:30:00
+#SBATCH --time=02:00:00
 #DEBUG #SBATCH --time=0:30:00
 #DEBUG #SBATCH --qos=debug
 #DEBUG #SBATCH --reservation=gpu_debug
