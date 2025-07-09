@@ -44,7 +44,7 @@ lsc240420_prefixes_test_10pct.txt
 --total_epochs
 50
 --cycle_epochs
-4
+3
 --train_batches
 <NTRN_BATCH>
 --val_batches
