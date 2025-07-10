@@ -50,4 +50,4 @@ lsc240420_prefixes_test_10pct.txt
 --val_batches
 <NVAL_BATCH>
 --TRAIN_PER_VAL
-10
+5
