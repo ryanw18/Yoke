@@ -683,7 +683,7 @@ def test_pos_embed_single_patch(device: str) -> None:
     num_patches = 1
     batch_size = 2
 
-    pos_embed = PosEmbed(embed_dim, patch_size, image_size, num_patches.to(device)
+    pos_embed = PosEmbed(embed_dim, patch_size, image_size, num_patches.to(device))
 
     x = torch.randn(batch_size, num_patches, embed_dim).to(device)
 
