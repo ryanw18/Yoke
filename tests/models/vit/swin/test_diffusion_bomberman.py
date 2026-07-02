@@ -128,13 +128,9 @@ def test_lightning_diffusion_model_init(
     lightning_diffusion_model: Lightning_DiffusionLodeRunner,
 ) -> None:
     """Test Lightning_DiffusionLodeRunner initialization."""
-    assert isinstance(
-        lightning_diffusion_model, Lightning_DiffusionLodeRunner
-    )
+    assert isinstance(lightning_diffusion_model, Lightning_DiffusionLodeRunner)
     assert isinstance(lightning_diffusion_model.model, DiffusionLodeRunner)
-    assert isinstance(
-        lightning_diffusion_model.noise_schedule, VPCosineNoiseSchedule
-    )
+    assert isinstance(lightning_diffusion_model.noise_schedule, VPCosineNoiseSchedule)
 
 
 def test_lightning_diffusion_model_configure_optimizers(
@@ -145,9 +141,7 @@ def test_lightning_diffusion_model_configure_optimizers(
 
     assert "optimizer" in optimizer_config
     assert "lr_scheduler" in optimizer_config
-    assert isinstance(
-        optimizer_config["optimizer"], torch.optim.AdamW
-    )
+    assert isinstance(optimizer_config["optimizer"], torch.optim.AdamW)
 
 
 def test_training_step(
