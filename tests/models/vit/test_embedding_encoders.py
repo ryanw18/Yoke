@@ -244,7 +244,7 @@ def test_var_embed_weight_initialization(default_vars: list[str]) -> None:
     var_embed = VarEmbed(default_vars, embed_dim)
 
     # Check that weights are initialized (not all zeros)
-    assert not torch.allclose(var_embed.var_embed, 
+    assert not torch.allclose(var_embed.var_embed,
                               torch.zeros_like(var_embed.var_embed))
 
 
