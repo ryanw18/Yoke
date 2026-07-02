@@ -107,9 +107,18 @@ To run the tests use ...
 > `pytest`, `pytest-cov`, `ruff`, and `coverage` in your python environment separately.
 
 ```bash
->> pytest
+>> pytest -Werror
 >> pytest --cov
 >> pytest --cov --cov-report term-missing
+```
+
+You can look in `.github/workflows/yoke_install_test_lint.yml` to see exactly what
+the github-CI runs.
+
+To generate an HTML coverage report use:
+
+```bash
+>> pytest --cov=. --cov-report=html
 ```
 
 Linting

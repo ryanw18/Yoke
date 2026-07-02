@@ -13,7 +13,7 @@
 #SBATCH --job-name=ddp_s<studyIDX>_e0001
 #SBATCH --account=y26_artimis-fmod_g
 #SBATCH --partition=standard
-#SBATCH --time=1:30:00
+#SBATCH --time=8:00:00
 #SBATCH --nodes=<KNODES>
 #SBATCH --ntasks-per-node=<NGPUS>
 #SBATCH --gpus-per-node=<NGPUS>
@@ -30,7 +30,7 @@ export MASTER_ADDR
 export MASTER_PORT
 
 # Enable shell debugging
-set -xv
+#set -xv
 
 # Check available GPUs
 sinfo  -o "%P %.24G %N"
@@ -51,10 +51,8 @@ export NCCL_IB_GID_INDEX=3  # sometimes 0 or 3 depending on subnet manager confi
 # Debugging selene slurm
 export SLURM_CPU_BIND=verbose
 
-# Load correct conda environment
-module load anaconda/3.12
-source activate
-conda activate <YOKE_TORCH_ENV>
+# Load correct python environment
+source $HOME/yoke_260202/bin/activate
 
 # Set number of threads per GPU
 export OMP_NUM_THREADS=10

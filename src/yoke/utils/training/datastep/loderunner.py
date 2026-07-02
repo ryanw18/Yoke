@@ -169,6 +169,7 @@ def train_DDP_loderunner_datastep(
     device: torch.device,
     rank: int,
     world_size: int,
+    channel_map: list[int] = [0, 1, 2, 3, 4, 5, 6, 7],
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """A DDP-compatible training step for multi-input, multi-output data.
 
@@ -177,6 +178,7 @@ def train_DDP_loderunner_datastep(
         model (loaded pytorch model): model to train
         optimizer (torch.optim): optimizer for training set
         loss_fn (torch.nn Loss Function): loss function for training set
+        channel_map (list): list of channel indices to use
         device (torch.device): device index to select
         rank (int): Rank of device
         world_size (int): Number of total DDP processes
@@ -196,8 +198,8 @@ def train_DDP_loderunner_datastep(
     end_img = end_img.to(device, non_blocking=True)
 
     # Fixed input and output variable indices
-    in_vars = torch.tensor([0, 1, 2, 3, 4, 5, 6, 7]).to(device, non_blocking=True)
-    out_vars = torch.tensor([0, 1, 2, 3, 4, 5, 6, 7]).to(device, non_blocking=True)
+    in_vars = torch.tensor(channel_map).to(device, non_blocking=True)
+    out_vars = torch.tensor(channel_map).to(device, non_blocking=True)
 
     # Forward pass
     pred_img = model(start_img, in_vars, out_vars, Dt)
@@ -488,6 +490,7 @@ def eval_DDP_loderunner_datastep(
     device: torch.device,
     rank: int,
     world_size: int,
+    channel_map: list[int] = [0, 1, 2, 3, 4, 5, 6, 7],
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """A DDP-compatible evaluation step.
 
@@ -495,6 +498,7 @@ def eval_DDP_loderunner_datastep(
         data (tuple): tuple of model input, corresponding ground truth, and lead time
         model (loaded pytorch model): model to train
         loss_fn (torch.nn Loss Function): loss function for training set
+        channel_map (list): list of channel indices to use
         device (torch.device): device index to select
         rank (int): Rank of device
         world_size (int): Total number of DDP processes
@@ -514,8 +518,8 @@ def eval_DDP_loderunner_datastep(
     end_img = end_img.to(device, non_blocking=True)
 
     # Fixed input and output variable indices
-    in_vars = torch.tensor([0, 1, 2, 3, 4, 5, 6, 7]).to(device, non_blocking=True)
-    out_vars = torch.tensor([0, 1, 2, 3, 4, 5, 6, 7]).to(device, non_blocking=True)
+    in_vars = torch.tensor(channel_map).to(device, non_blocking=True)
+    out_vars = torch.tensor(channel_map).to(device, non_blocking=True)
 
     # Forward pass
     with torch.no_grad():

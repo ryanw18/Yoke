@@ -351,6 +351,7 @@ def train_DDP_loderunner_epoch(
     num_train_batches: int,
     num_val_batches: int,
     model: torch.nn.Module,
+    channel_map: list[int],
     optimizer: torch.optim.Optimizer,
     loss_fn: torch.nn.Module,
     LRsched: torch.optim.lr_scheduler._LRScheduler,
@@ -375,6 +376,7 @@ def train_DDP_loderunner_epoch(
         num_train_batches (int): Number of batches in training epoch
         num_val_batches (int): Number of batches in validation epoch
         model (torch.nn.Module): model to train
+        channel_map (list[int]): list of channel indices to use
         optimizer (torch.optim.Optimizer): optimizer for training set
         loss_fn (torch.nn.Module): loss function for training set
         LRsched (torch.optim.lr_scheduler._LRScheduler): Learning-rate scheduler called
@@ -414,7 +416,7 @@ def train_DDP_loderunner_epoch(
 
             # Training
             truth, pred, train_losses = train_fn(
-                traindata, model, optimizer, loss_fn, device, rank, world_size
+                traindata, model, optimizer, loss_fn, device, rank, world_size, channel_map,
             )
 
             # Increment the learning-rate scheduler
@@ -451,7 +453,8 @@ def train_DDP_loderunner_epoch(
                         loss_fn,
                         device,
                         rank,
-                        world_size
+                        world_size,
+                        channel_map,
                     )
 
                     # Save validation record (rank 0 only)

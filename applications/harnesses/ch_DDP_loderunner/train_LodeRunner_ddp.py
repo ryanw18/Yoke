@@ -14,7 +14,7 @@ from yoke.utils.restart import continuation_setup
 from yoke.utils.dataload import make_distributed_dataloader
 from yoke.utils.checkpointing import load_model_and_optimizer
 from yoke.utils.checkpointing import save_model_and_optimizer
-from yoke.lr_schedulers import CosineWithWarmupScheduler
+from yoke.lr_schedulers import ConstantWithWarmupScheduler
 from yoke.helpers import cli
 
 
@@ -40,7 +40,14 @@ parser.add_argument(
     "--noise_scale",
     type=float,
     default=0.0,
-    help="Relative magnitude ε for Gaussian noise injection (e.g. 5e-5).",
+    help="Relative magnitude for Gaussian noise injection (e.g. 5e-5).",
+)
+
+parser.add_argument(
+    "--max_timeIDX_offset",
+    type=int,
+    default=1,
+    help="Maximum time offset for input/output image pairs.",
 )
 
 # Change some default filepaths.
@@ -108,13 +115,8 @@ def main(args, rank, world_size, local_rank, device):
     embed_dim = args.embed_dim
     block_structure = tuple(args.block_structure)
 
-    # Training Parameters
-    anchor_lr = args.anchor_lr
-    num_cycles = args.num_cycles
-    min_fraction = args.min_fraction
-    terminal_steps = args.terminal_steps
-    warmup_steps = args.warmup_steps
-    noise_scale = args.noise_scale
+    # Training parameters
+    max_timeIDX_offset = args.max_timeIDX_offset
 
     # Number of workers controls how batches of data are prefetched and,
     # possibly, pre-loaded onto GPUs. If the number of workers is large they
@@ -141,27 +143,113 @@ def main(args, rank, world_size, local_rank, device):
         "LodeRunner": LodeRunner
     }
 
+    # Not all channels are available for every PLI simulation. The burn-fraction of the
+    # maincharge as well as the yield strength, stress components, and shear modulus for
+    # metal materials are missing in many PLI simulations.
+    # available_pli_channels = [
+    #     'sim_time',
+    #     'av_density',
+    #     'av_pressure',
+    #     'av_temperature',
+    #     'burn_frac_maincharge',
+    #     'density_case',
+    #     'density_cushion',
+    #     'density_maincharge',
+    #     'density_outside_air',
+    #     'density_striker',
+    #     'density_throw',
+    #     'energy_case',
+    #     'energy_cushion',
+    #     'energy_maincharge',
+    #     'energy_outside_air',
+    #     'energy_striker',
+    #     'energy_throw',
+    #     'plst_strain_case',
+    #     'plst_strain_striker',
+    #     'plst_strain_throw',
+    #     'pressure_case',
+    #     'pressure_cushion',
+    #     'pressure_maincharge',
+    #     'pressure_outside_air',
+    #     'pressure_striker',
+    #     'pressure_throw',
+    #     'shear_modulus_case',
+    #     'shear_modulus_striker',
+    #     'shear_modulus_throw',
+    #     'sound_speed_case',
+    #     'sound_speed_cushion',
+    #     'sound_speed_maincharge',
+    #     'sound_speed_outside_air',
+    #     'sound_speed_striker',
+    #     'sound_speed_throw',
+    #     'strain_rate_case',
+    #     'strain_rate_striker',
+    #     'strain_rate_throw',
+    #     'Sxxm_case',
+    #     'Sxxm_striker',
+    #     'Sxxm_throw',
+    #     'Sxzm_case',
+    #     'Sxzm_striker',
+    #     'Sxzm_throw',
+    #     'Syym_case',
+    #     'Syym_striker',
+    #     'Syym_throw',
+    #     'Szzm_case',
+    #     'Szzm_striker',
+    #     'Szzm_throw',
+    #     'temperature_case',
+    #     'temperature_throw',
+    #     'Uvelocity',
+    #     'vofm_case',
+    #     'vofm_cushion',
+    #     'vofm_maincharge',
+    #     'vofm_outside_air',
+    #     'vofm_striker',
+    #     'vofm_throw',
+    #     'vofm_Void',
+    #     'Wvelocity',
+    #     'yield_case',
+    #     'yield_striker',
+    #     'yield_throw',
+    #     'Rcoord',
+    #     'Zcoord',
+    # ]
+
+    channel_list = [
+        'density_case',
+        'energy_case',
+        'pressure_case',
+        'density_cushion',
+        'energy_cushion',
+        'pressure_cushion',
+        'density_maincharge',
+        'energy_maincharge',
+        'pressure_maincharge',
+        'density_outside_air',
+        'energy_outside_air',
+        'pressure_outside_air',
+        'density_striker',
+        'energy_striker',
+        'pressure_striker',
+        'density_throw',
+        'energy_throw',
+        'pressure_throw',
+        'Uvelocity',
+        'Wvelocity',
+    ]
+    
     # Model arguments for LodeRunner.
     model_args = {
-        "default_vars": [
-            "density_case",
-            "density_cushion",
-            "density_maincharge",
-            "density_outside_air",
-            "density_striker",
-            "density_throw",
-            "Uvelocity",
-            "Wvelocity",
-        ],
+        "default_vars": channel_list,
         "image_size": (1120, 400),
-        "patch_size": (10, 5),
+        "patch_size": (5, 5),
         "embed_dim": embed_dim,
         "emb_factor": 2,
         "num_heads": 8,
         "block_structure": block_structure,
-        "window_sizes": [(8, 8), (8, 8), (4, 4), (2, 2)],
+        "window_sizes": [(2, 2), (2, 2), (2, 2), (2, 2)],
         "patch_merge_scales": [(2, 2), (2, 2), (2, 2)],
-        "noise_scale": noise_scale,
+        "noise_scale": 0.0,
     }
 
     #############################################
@@ -174,7 +262,7 @@ def main(args, rank, world_size, local_rank, device):
             checkpoint,
             optimizer_class=torch.optim.AdamW,
             optimizer_kwargs={
-                "lr": 1e-6,
+                "lr": 1e-4,
                 "betas": (0.9, 0.999),
                 "eps": 1e-08,
                 "weight_decay": 0.01,
@@ -194,7 +282,7 @@ def main(args, rank, world_size, local_rank, device):
         # Instantiate optimizer and move state to GPU.
         optimizer = torch.optim.AdamW(
             model.parameters(),
-            lr=1e-6,
+            lr=1e-4,
             betas=(0.9, 0.999),
             eps=1e-08,
             weight_decay=0.01
@@ -225,23 +313,10 @@ def main(args, rank, world_size, local_rank, device):
     else:
         last_epoch = train_batches * (starting_epoch - 1)
 
-    # Scale the anchor LR by global batchsize
-    #
-    # # For multi-node
-    lr_scale = np.sqrt(float(Ngpus) * float(Knodes) * float(batch_size))
-    original_batchsize = 40.0  # 1 node, 4 gpus, 10 samples/gpu
-    ddp_anchor_lr = anchor_lr * lr_scale / original_batchsize
-    #
-    # For single node
-    # ddp_anchor_lr = anchor_lr
-
-    LRsched = CosineWithWarmupScheduler(
+    LRsched = ConstantWithWarmupScheduler(
         optimizer,
-        anchor_lr=ddp_anchor_lr,
-        terminal_steps=terminal_steps,
-        warmup_steps=warmup_steps,
-        num_cycles=num_cycles,
-        min_fraction=min_fraction,
+        warmup_steps=0,
+        lr_constant=1e-4,
         last_epoch=last_epoch,
     )
 
@@ -251,15 +326,17 @@ def main(args, rank, world_size, local_rank, device):
     train_dataset = LSC_rho2rho_temporal_DataSet(
         args.LSC_NPZ_DIR,
         file_prefix_list=train_filelist,
-        max_timeIDX_offset=2,
+        max_timeIDX_offset=max_timeIDX_offset,
         max_file_checks=10,
+        hydro_fields=np.array(channel_list),
         half_image=True,
     )
     val_dataset = LSC_rho2rho_temporal_DataSet(
         args.LSC_NPZ_DIR,
         file_prefix_list=validation_filelist,
-        max_timeIDX_offset=2,
+        max_timeIDX_offset=max_timeIDX_offset,
         max_file_checks=10,
+        hydro_fields=np.array(channel_list),
         half_image=True,
     )
 
@@ -309,6 +386,7 @@ def main(args, rank, world_size, local_rank, device):
             num_train_batches=train_batches,
             num_val_batches=val_batches,
             model=model,
+            channel_map=list(range(len(channel_list))),
             optimizer=optimizer,
             loss_fn=loss_fn,
             LRsched=LRsched,
