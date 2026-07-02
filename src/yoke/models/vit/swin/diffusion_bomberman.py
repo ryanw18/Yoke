@@ -24,51 +24,11 @@ from yoke.models.vit.embedding_encoders import (
     VarEmbed,
     PosEmbed,
     TimeEmbed,
+    DiffusionTimeEmbed
 )
+from yoke.utils.diffusion.noise_schedulers import VPCosineNoiseSchedule
 from yoke.lr_schedulers import CosineWithWarmupScheduler
 from yoke.helpers.training_design import validate_patch_and_window
-
-class DiffusionTimeEmbed(nn.Module):
-    """Diffusion time encoding/embedding.
-
-    Encodes the diffusion time parameter t ∈ [0,1] into a learned embedding
-    of dimension embed_dim, analogous to TimeEmbed for lead times.
-
-    This embedding is used to help track/tag each entry of a batch by it's
-    corresponding lead time. After variable aggregation and position encoding,
-    temporal encoding is added to patch tokens.
-
-    This embedding consists of a single 1D linear embedding of lead-times per
-    sample in the batch to the embedding dimension.
-
-    NOTE: Entries for image_size and patch_size should divide eachother evenly.
-
-    Args:
-        embed_dim (int): Embedding dimension, must be divisible by 2.
-
-    Foward method args:
-        diff_times (torch.Tensor): diff_times.shape = (B,). Diffusion
-                                   times of each element of the batch.
-
-    """
-
-    def __init__(self, embed_dim: int) -> None:
-        """Initialization for temporal embedding."""
-        super().__init__()
-
-        self.diff_time_embed = nn.Linear(1, embed_dim)
-
-    def forward(self, x: torch.Tensor, diff_times: torch.Tensor) -> torch.Tensor:
-        """Forward method for temporal embedding."""
-        # The input tensor is shape:
-        #  (B, L, D)=(B, NumTokens, embed_dim)
-
-        # Add diffusion time embedding
-        diff_time_emb = self.diff_time_embed(diff_times.unsqueeze(-1))  # B, D
-        diff_time_emb = diff_time_emb.unsqueeze(1)  # B, 1, D
-        x = x + diff_time_emb  # B, L, D
-
-        return x
 
 
 class DiffusionLodeRunner(nn.Module):
@@ -80,9 +40,9 @@ class DiffusionLodeRunner(nn.Module):
 
     The model conditions on:
     - Input fields x (conditioning stream)
-    - Noised target fields y_t (noised-target stream)
-    - Lead time τ (temporal offset)
-    - Diffusion time t ∈ [0,1] (noise level)
+    - Noised target fields y_tau (noised-target stream)
+    - Lead time delta_t (Δt) (temporal offset)
+    - Diffusion time tau (τ) ∈ [0,1] (noise level)
 
     Args:
         default_vars (list[str]): List of default variables to be used for training.
@@ -173,9 +133,9 @@ class DiffusionLodeRunner(nn.Module):
             self.parallel_embed_x.num_patches,
         )
 
-        # ===== Stream B: Noised-target stream (noised fields y_t) =====
+        # ===== Stream B: Noised-target stream (noised fields y_tau) =====
         # Parallel patch embedding for noised target variables
-        self.parallel_embed_yt = ParallelVarPatchEmbed(
+        self.parallel_embed_y_tau = ParallelVarPatchEmbed(
             max_vars=self.max_vars,
             img_size=self.image_size,
             patch_size=self.patch_size,
@@ -184,24 +144,24 @@ class DiffusionLodeRunner(nn.Module):
         )
 
         # Variable embedding for noised-target stream
-        self.var_embed_yt = VarEmbed(self.default_vars, self.embed_dim)
+        self.var_embed_y_tau = VarEmbed(self.default_vars, self.embed_dim)
 
         # Variable aggregation for noised-target stream
-        self.agg_vars_yt = AggVars(self.embed_dim, self.num_heads)
+        self.agg_vars_y_tau = AggVars(self.embed_dim, self.num_heads)
 
         # Position embedding for noised-target stream
-        self.pos_embed_yt = PosEmbed(
+        self.pos_embed_y_tau = PosEmbed(
             self.embed_dim,
             self.patch_size,
             self.image_size,
-            self.parallel_embed_yt.num_patches,
+            self.parallel_embed_y_tau.num_patches,
         )
 
         # ===== Temporal conditioning =====
-        # Lead-time encoding (τ)
+        # Lead-time encoding (Δt)
         self.temporal_encoding = TimeEmbed(self.embed_dim)
 
-        # Diffusion-time encoding (t)
+        # Diffusion-time encoding (τ)
         self.diffusion_time_encoding = DiffusionTimeEmbed(self.embed_dim)
 
         # ===== SWIN U-Net backbone =====
@@ -232,7 +192,7 @@ class DiffusionLodeRunner(nn.Module):
     def forward(
         self,
         x: torch.Tensor,
-        y_t: torch.Tensor,
+        y_tau: torch.Tensor,
         in_vars: torch.Tensor,
         out_vars: torch.Tensor,
         lead_times: torch.Tensor,
@@ -242,7 +202,7 @@ class DiffusionLodeRunner(nn.Module):
 
         Args:
             x: Conditioning input fields of shape (B, C_in, H, W).
-            y_t: Noised target fields of shape (B, C_out, H, W).
+            y_tau: Noised target fields of shape (B, C_out, H, W).
             in_vars: Tensor of variable indices for input (conditioning) variables.
             out_vars: Tensor of variable indices for output (target) variables.
             lead_times: Lead time values of shape (B,) for temporal conditioning.
@@ -264,27 +224,27 @@ class DiffusionLodeRunner(nn.Module):
         # Encode patch positions for conditioning
         z_x = self.pos_embed_x(z_x)  # (B, N, D)
 
-        # ===== Stream B: Process noised target y_t =====
+        # ===== Stream B: Process noised target y_tau =====
         # Embed noised target
-        z_yt = self.parallel_embed_yt(y_t, out_vars)  # (B, N, D)
+        z_y_tau = self.parallel_embed_y_tau(y_tau, out_vars)  # (B, N, D)
 
         # Encode target variables
-        z_yt = self.var_embed_yt(z_yt, out_vars)  # (B, N, D)
+        z_y_tau = self.var_embed_y_tau(z_y_tau, out_vars)  # (B, N, D)
 
         # Aggregate target variables
-        z_yt = self.agg_vars_yt(z_yt)  # (B, N, D)
+        z_y_tau = self.agg_vars_y_tau(z_y_tau)  # (B, N, D)
 
         # Encode patch positions for target
-        z_yt = self.pos_embed_yt(z_yt)  # (B, N, D)
+        z_y_tau = self.pos_embed_y_tau(z_y_tau)  # (B, N, D)
 
         # ===== Token fusion: Additive combination of streams =====
-        z = z_x + z_yt  # (B, N, D)
+        z = z_x + z_y_tau  # (B, N, D)
 
         # ===== Temporal conditioning =====
-        # Encode lead time τ
+        # Encode lead time Δt
         z = self.temporal_encoding(z, lead_times)  # (B, N, D)
 
-        # Encode diffusion time t
+        # Encode diffusion time τ
         z = self.diffusion_time_encoding(z, diffusion_time)  # (B, N, D)
 
         # ===== SWIN U-Net backbone =====
@@ -303,102 +263,6 @@ class DiffusionLodeRunner(nn.Module):
         return epsilon_pred
 
 
-class VPNoiseSchedule:
-    """Variance-preserving (VP) noise schedule.
-
-    Implements the VP forward diffusion process:
-        y_t = alpha(t) * y + sigma(t) * epsilon
-    where alpha(t)^2 + sigma(t)^2 = 1
-
-    Uses a cosine schedule for smooth interpolation.
-    """
-
-    def __init__(self) -> None:
-        """Initialization for VP noise schedule."""
-        #Skylar has no idea if we need the init for anything
-        #and is increasingly weirded out by how the AI wants to finish my thoughts
-        #let me have my own thoughts please
-        pass
-
-    def alpha(self, t: torch.Tensor) -> torch.Tensor:
-        """Compute coefficient alpha(t) = cos(pi*t/2).
-
-        Args:
-            t: Diffusion time in [0, 1], shape (B,) or (B, 1).
-
-        Returns:
-            alpha(t) values, same shape as t.
-        """
-        return torch.cos(math.pi * t / 2.0)
-    
-    def sigma(self, t: torch.Tensor) -> torch.Tensor:
-        """Compute coefficient sigma(t) = sin(pi*t/2).
-
-        Args:
-            t: Diffusion time in [0, 1], shape (B,) or (B, 1).
-
-        Returns:
-            sigma(t) values, same shape as t.
-        """
-        return torch.sin(math.pi * t / 2.0)
-
-    def forward_diffusion(
-        self, y: torch.Tensor, t: torch.Tensor, noise: torch.Tensor = None
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Apply forward diffusion process.
-
-        Implements: y_t = alpha(t) * y + sigma(t) * noise.
-
-        Args:
-            y: Clean target of shape (B, C, H, W).
-            t: Diffusion time in [0, 1], shape (B,).
-            noise: Optional pre-sampled noise. If None, samples from N(0, I).
-
-        Returns:
-            y_t: Noised target of shape (B, C, H, W).
-            noise: The noise that was added, shape (B, C, H, W).
-        """
-        if noise is None:
-            noise = torch.randn_like(y)
-
-        # Reshape t for broadcasting: (B,) -> (B, 1, 1, 1)
-        t_expanded = t.view(-1, 1, 1, 1)
-
-        # Compute coefficients
-        alpha_t = self.alpha(t_expanded)
-        sigma_t = self.sigma(t_expanded)
-
-        # Apply VP forward process: y_t = α(t)*y + σ(t)*ε
-        y_t = alpha_t * y + sigma_t * noise
-
-        return y_t, noise
-
-    def remove_noise(
-        self, y_t: torch.Tensor, t: torch.Tensor, noise: torch.Tensor
-    ) -> torch.Tensor:
-        """Removes noise from target data.
-
-        Implements: ŷ_0 = (y_t - sigma(t)*noise) / alpha(t)
-
-        Args:
-            y_t: Noised target of shape (B, C, H, W).
-            t: Diffusion time in [0, 1], shape (B,).
-            noise: noise of shape (B, C, H, W).
-
-        Returns:
-            Denoised target of shape (B, C, H, W).
-        """
-        # Reshape t for broadcasting
-        t_expanded = t.view(-1, 1, 1, 1)
-
-        alpha_t = self.alpha(t_expanded)
-        sigma_t = self.sigma(t_expanded)
-
-        y0_pred = (y_t - sigma_t * noise) / (alpha_t + 1e-8)
-
-        return y0_pred
-
-
 class Lightning_DiffusionLodeRunner(LightningModule):
     """Lightning wrapper for DiffusionLodeRunner.
 
@@ -412,7 +276,7 @@ class Lightning_DiffusionLodeRunner(LightningModule):
         lr_scheduler (_LRScheduler): Learning-rate scheduler class.
         scheduler_params (dict): Keyword arguments for scheduler initialization.
         loss_fn (Callable): Loss function for noise prediction (default: MSE).
-        noise_schedule (VPNoiseSchedule): VP noise schedule for diffusion.
+        noise_schedule (VPCosineNoiseSchedule): VP noise schedule for diffusion.
     """
 
     def __init__(
@@ -423,7 +287,7 @@ class Lightning_DiffusionLodeRunner(LightningModule):
         lr_scheduler: _LRScheduler = None,
         scheduler_params: dict = None,
         loss_fn: Callable = nn.MSELoss(),
-        noise_schedule: VPNoiseSchedule = None,
+        noise_schedule: VPCosineNoiseSchedule = None,
     ) -> None:
         """Initialize Lightning wrapper."""
         super().__init__()
@@ -431,7 +295,7 @@ class Lightning_DiffusionLodeRunner(LightningModule):
         self.lr_scheduler = lr_scheduler or CosineWithWarmupScheduler
         self.scheduler_params = scheduler_params or {}
         self.loss_fn = loss_fn
-        self.noise_schedule = noise_schedule or VPNoiseSchedule()
+        self.noise_schedule = noise_schedule or VPCosineNoiseSchedule()
 
         # Register buffers for device management
         self.register_buffer("in_vars", in_vars)
@@ -467,19 +331,19 @@ class Lightning_DiffusionLodeRunner(LightningModule):
 
         # Sample diffusion times uniformly from [0, 1]
         batch_size = x.shape[0]
-        t = torch.rand(batch_size, device=x.device)
+        tau = torch.rand(batch_size, device=x.device)
 
         # Apply forward diffusion to get noised targets
-        y_t, noise = self.noise_schedule.forward_diffusion(y, t)
+        y_tau, noise = self.noise_schedule.forward_diffusion(y, tau)
 
         # Predict noise
         noise_pred = self.model(
             x=x,
-            y_t=y_t,
+            y_tau=y_tau,
             in_vars=self.in_vars,
             out_vars=self.out_vars,
             lead_times=lead_times,
-            diffusion_time=t,
+            diffusion_time=tau,
         )
 
         # Compute loss (MSE between predicted and true noise)
@@ -504,19 +368,19 @@ class Lightning_DiffusionLodeRunner(LightningModule):
 
         # Sample diffusion times
         batch_size = x.shape[0]
-        t = torch.rand(batch_size, device=x.device)
+        tau = torch.rand(batch_size, device=x.device)
 
         # Apply forward diffusion
-        y_t, noise = self.noise_schedule.forward_diffusion(y, t)
+        y_tau, noise = self.noise_schedule.forward_diffusion(y, tau)
 
         # Predict noise
         noise_pred = self.model(
             x=x,
-            y_t=y_t,
+            y_tau=y_tau,
             in_vars=self.in_vars,
             out_vars=self.out_vars,
             lead_times=lead_times,
-            diffusion_time=t,
+            diffusion_time=tau,
         )
 
         # Compute loss
@@ -550,7 +414,7 @@ class Lightning_DiffusionLodeRunner(LightningModule):
         # Initialize from pure noise
         # Determine output shape from out_vars
         num_out_vars = len(self.out_vars)
-        y_t = torch.randn(
+        y_tau = torch.randn(
             batch_size, num_out_vars, *self.model.image_size, device=device
         )
 
@@ -558,41 +422,223 @@ class Lightning_DiffusionLodeRunner(LightningModule):
         timesteps = torch.linspace(1.0, 0.0, num_steps + 1, device=device)
 
         for i in range(num_steps):
-            t_current = timesteps[i]
-            t_next = timesteps[i + 1]
+            tau_current = timesteps[i]
+            tau_next = timesteps[i + 1]
 
             # Broadcast to batch
-            t_batch = t_current.repeat(batch_size)
+            tau_batch = tau_current.repeat(batch_size)
 
             # Predict noise
             noise_pred = self.model(
                 x=x,
-                y_t=y_t,
+                y_tau=y_tau,
                 in_vars=self.in_vars,
                 out_vars=self.out_vars,
                 lead_times=lead_times,
-                diffusion_time=t_batch,
+                diffusion_time=tau_batch,
             )
 
             # Predict x0
             y0_pred = self.noise_schedule.remove_noise(
-                y_t, t_batch, noise_pred
+                y_tau, tau_batch, noise_pred
             )
 
             # DDIM update (deterministic when eta=0)
-            if t_next > 0:
-                t_next_batch = t_next.repeat(batch_size)
+            if tau_next > 0:
+                tau_next_batch = tau_next.repeat(batch_size)
                 alpha_next = self.noise_schedule.alpha(
-                    t_next_batch.view(-1, 1, 1, 1)
+                    tau_next_batch.view(-1, 1, 1, 1)
                 )
                 sigma_next = self.noise_schedule.sigma(
-                    t_next_batch.view(-1, 1, 1, 1)
+                    tau_next_batch.view(-1, 1, 1, 1)
                 )
 
                 # DDIM formula: y_{t-1} = α_{t-1}*ŷ_0 + σ_{t-1}*ε̂
-                y_t = alpha_next * y0_pred + sigma_next * noise_pred
+                y_tau = alpha_next * y0_pred + sigma_next * noise_pred
             else:
                 # Final step: return predicted x0
-                y_t = y0_pred
+                y_tau = y0_pred
 
-        return y_t
+        return y_tau
+
+
+if __name__ == "__main__":
+    from yoke.utils.parameters import count_torch_params
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    default_vars = [
+        "cu_pressure",
+        "cu_density",
+        "cu_temperature",
+        "al_pressure",
+        "al_density",
+        "al_temperature",
+        "ss_pressure",
+        "ss_density",
+        "ss_temperature",
+        "ply_pressure",
+        "ply_density",
+        "ply_temperature",
+        "air_pressure",
+        "air_density",
+        "air_temperature",
+        "hmx_pressure",
+        "hmx_density",
+        "hmx_temperature",
+        "r_vel",
+        "z_vel",
+    ]
+
+    # (B, C, H, W)
+    x = torch.rand(5, 4, 1120, 800)
+    x = x.type(torch.FloatTensor).to(device)
+
+    # Target for diffusion (same shape as x for this test)
+    y = torch.rand(5, 4, 1120, 800)
+    y = y.type(torch.FloatTensor).to(device)
+
+    lead_times = torch.rand(5).to(device)  # Lead time for each entry in batch
+    diffusion_times = torch.rand(5).to(device)  # Diffusion time tau in [0, 1]
+
+    # Variable indices
+    x_vars = torch.tensor([1, 7, 10, 13]).to(device)
+    out_vars = torch.tensor([1, 7, 10, 13]).to(device)
+
+    # Common model setup for DiffusionLodeRunner
+    emb_factor = 2
+    patch_size = (10, 10)
+    image_size = (1120, 800)
+    num_heads = 8
+    window_sizes = [(8, 8), (8, 8), (4, 4), (2, 2)]
+    patch_merge_scales = [(2, 2), (2, 2), (2, 2)]
+
+    # Tiny size
+    embed_dim = 96
+    block_structure = (1, 1, 3, 1)
+
+    # Test DiffusionLodeRunner architecture
+    print("\n" + "="*60)
+    print("Testing DiffusionLodeRunner Architecture")
+    print("="*60)
+
+    diffusion_lode_runner = DiffusionLodeRunner(
+        default_vars=default_vars,
+        image_size=image_size,
+        patch_size=patch_size,
+        embed_dim=embed_dim,
+        emb_factor=emb_factor,
+        num_heads=num_heads,
+        block_structure=block_structure,
+        window_sizes=window_sizes,
+        patch_merge_scales=patch_merge_scales,
+        verbose=False,
+    ).to(device)
+
+    # Test forward pass (noise prediction)
+    noise_pred = diffusion_lode_runner(
+        x=x,
+        y_tau=y,
+        in_vars=x_vars,
+        out_vars=out_vars,
+        lead_times=lead_times,
+        diffusion_time=diffusion_times,
+    )
+    print(f"\nDiffusionLodeRunner-tiny output shape: {noise_pred.shape}")
+    print(f"DiffusionLodeRunner-tiny output has NaNs: {torch.isnan(noise_pred).any()}")
+    print(
+        f"DiffusionLodeRunner-tiny parameters: "
+        f"{count_torch_params(diffusion_lode_runner, trainable=True):,}"
+    )
+
+    # Test Lightning wrapper initialization
+    print("\n" + "-"*60)
+    print("Testing Lightning Wrapper")
+    print("-"*60)
+
+    L_diffusion_loderunner = Lightning_DiffusionLodeRunner(
+        diffusion_lode_runner,
+        in_vars=x_vars,
+        out_vars=out_vars,
+        lr_scheduler=CosineWithWarmupScheduler,
+        scheduler_params={
+            "warmup_steps": 500,
+            "anchor_lr": 1e-3,
+            "terminal_steps": 1000,
+            "num_cycles": 0.5,
+            "min_fraction": 0.5,
+            "last_epoch": 0,
+        },
+    )
+
+    # Test training step (manually compute loss without logging)
+    batch = (x, y, lead_times)
+    x_batch, y_batch, lead_times_batch = batch
+
+    # Sample diffusion times
+    batch_size = x_batch.shape[0]
+    tau = torch.rand(batch_size, device=x_batch.device)
+
+    # Apply forward diffusion
+    y_tau, noise = L_diffusion_loderunner.noise_schedule.forward_diffusion(y_batch, tau)
+
+    # Predict noise
+    noise_pred = L_diffusion_loderunner.model(
+        x=x_batch,
+        y_tau=y_tau,
+        in_vars=L_diffusion_loderunner.in_vars,
+        out_vars=L_diffusion_loderunner.out_vars,
+        lead_times=lead_times_batch,
+        diffusion_time=tau,
+    )
+
+    # Compute loss
+    loss = L_diffusion_loderunner.loss_fn(noise_pred, noise)
+    print(f"\nTraining step loss: {loss.item():.6f}")
+
+    # Test sampling
+    print("\n" + "-"*60)
+    print("Testing DDIM Sampling")
+    print("-"*60)
+
+    samples = L_diffusion_loderunner.sample(
+        x=x,
+        lead_times=lead_times,
+        num_steps=10,  # Use fewer steps for testing
+        eta=0.0,
+    )
+    print(f"\nSampled output shape: {samples.shape}")
+    print(f"Sampled output has NaNs: {torch.isnan(samples).any()}")
+
+    # Test different model sizes
+    print("\n" + "="*60)
+    print("Testing Different Model Sizes")
+    print("="*60)
+
+    sizes = [
+        ("small", 96, (1, 1, 9, 1)),
+        ("big", 128, (1, 1, 9, 1)),
+        ("large", 192, (1, 1, 9, 1)),
+        ("huge", 352, (1, 1, 9, 1)),
+        ("giant", 512, (1, 1, 11, 2)),
+    ]
+
+    for size_name, embed_dim, block_structure in sizes:
+        diffusion_lode_runner = DiffusionLodeRunner(
+            default_vars=default_vars,
+            image_size=image_size,
+            patch_size=patch_size,
+            embed_dim=embed_dim,
+            emb_factor=emb_factor,
+            num_heads=num_heads,
+            block_structure=block_structure,
+            window_sizes=window_sizes,
+            patch_merge_scales=patch_merge_scales,
+            verbose=False,
+        ).to(device)
+        param_count = count_torch_params(diffusion_lode_runner, trainable=True)
+        print(f"\nDiffusionLodeRunner-{size_name} parameters: {param_count:,}")
+
+    print("\n" + "="*60)
+    print("All tests completed successfully!")
+    print("="*60)
