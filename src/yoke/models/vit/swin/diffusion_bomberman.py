@@ -460,3 +460,185 @@ class Lightning_DiffusionLodeRunner(LightningModule):
                 y_tau = y0_pred
 
         return y_tau
+
+
+if __name__ == "__main__":
+    from yoke.utils.parameters import count_torch_params
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    default_vars = [
+        "cu_pressure",
+        "cu_density",
+        "cu_temperature",
+        "al_pressure",
+        "al_density",
+        "al_temperature",
+        "ss_pressure",
+        "ss_density",
+        "ss_temperature",
+        "ply_pressure",
+        "ply_density",
+        "ply_temperature",
+        "air_pressure",
+        "air_density",
+        "air_temperature",
+        "hmx_pressure",
+        "hmx_density",
+        "hmx_temperature",
+        "r_vel",
+        "z_vel",
+    ]
+
+    # (B, C, H, W)
+    x = torch.rand(5, 4, 1120, 800)
+    x = x.type(torch.FloatTensor).to(device)
+
+    # Target for diffusion (same shape as x for this test)
+    y = torch.rand(5, 4, 1120, 800)
+    y = y.type(torch.FloatTensor).to(device)
+
+    lead_times = torch.rand(5).to(device)  # Lead time for each entry in batch
+    diffusion_times = torch.rand(5).to(device)  # Diffusion time tau in [0, 1]
+
+    # Variable indices
+    x_vars = torch.tensor([1, 7, 10, 13]).to(device)
+    out_vars = torch.tensor([1, 7, 10, 13]).to(device)
+
+    # Common model setup for DiffusionLodeRunner
+    emb_factor = 2
+    patch_size = (10, 10)
+    image_size = (1120, 800)
+    num_heads = 8
+    window_sizes = [(8, 8), (8, 8), (4, 4), (2, 2)]
+    patch_merge_scales = [(2, 2), (2, 2), (2, 2)]
+
+    # Tiny size
+    embed_dim = 96
+    block_structure = (1, 1, 3, 1)
+
+    # Test DiffusionLodeRunner architecture
+    print("\n" + "="*60)
+    print("Testing DiffusionLodeRunner Architecture")
+    print("="*60)
+
+    diffusion_lode_runner = DiffusionLodeRunner(
+        default_vars=default_vars,
+        image_size=image_size,
+        patch_size=patch_size,
+        embed_dim=embed_dim,
+        emb_factor=emb_factor,
+        num_heads=num_heads,
+        block_structure=block_structure,
+        window_sizes=window_sizes,
+        patch_merge_scales=patch_merge_scales,
+        verbose=False,
+    ).to(device)
+
+    # Test forward pass (noise prediction)
+    noise_pred = diffusion_lode_runner(
+        x=x,
+        y_tau=y,
+        in_vars=x_vars,
+        out_vars=out_vars,
+        lead_times=lead_times,
+        diffusion_time=diffusion_times,
+    )
+    print(f"\nDiffusionLodeRunner-tiny output shape: {noise_pred.shape}")
+    print(f"DiffusionLodeRunner-tiny output has NaNs: {torch.isnan(noise_pred).any()}")
+    print(
+        f"DiffusionLodeRunner-tiny parameters: "
+        f"{count_torch_params(diffusion_lode_runner, trainable=True):,}"
+    )
+
+    # Test Lightning wrapper initialization
+    print("\n" + "-"*60)
+    print("Testing Lightning Wrapper")
+    print("-"*60)
+
+    L_diffusion_loderunner = Lightning_DiffusionLodeRunner(
+        diffusion_lode_runner,
+        in_vars=x_vars,
+        out_vars=out_vars,
+        lr_scheduler=CosineWithWarmupScheduler,
+        scheduler_params={
+            "warmup_steps": 500,
+            "anchor_lr": 1e-3,
+            "terminal_steps": 1000,
+            "num_cycles": 0.5,
+            "min_fraction": 0.5,
+            "last_epoch": 0,
+        },
+    )
+
+    # Test training step (manually compute loss without logging)
+    batch = (x, y, lead_times)
+    x_batch, y_batch, lead_times_batch = batch
+
+    # Sample diffusion times
+    batch_size = x_batch.shape[0]
+    tau = torch.rand(batch_size, device=x_batch.device)
+
+    # Apply forward diffusion
+    y_tau, noise = L_diffusion_loderunner.noise_schedule.forward_diffusion(y_batch, tau)
+
+    # Predict noise
+    noise_pred = L_diffusion_loderunner.model(
+        x=x_batch,
+        y_tau=y_tau,
+        in_vars=L_diffusion_loderunner.in_vars,
+        out_vars=L_diffusion_loderunner.out_vars,
+        lead_times=lead_times_batch,
+        diffusion_time=tau,
+    )
+
+    # Compute loss
+    loss = L_diffusion_loderunner.loss_fn(noise_pred, noise)
+    print(f"\nTraining step loss: {loss.item():.6f}")
+
+    # Test sampling
+    print("\n" + "-"*60)
+    print("Testing DDIM Sampling")
+    print("-"*60)
+
+    samples = L_diffusion_loderunner.sample(
+        x=x,
+        lead_times=lead_times,
+        num_steps=10,  # Use fewer steps for testing
+        eta=0.0,
+    )
+    print(f"\nSampled output shape: {samples.shape}")
+    print(f"Sampled output has NaNs: {torch.isnan(samples).any()}")
+
+    # Test different model sizes
+    print("\n" + "="*60)
+    print("Testing Different Model Sizes")
+    print("="*60)
+
+    sizes = [
+        ("small", 96, (1, 1, 9, 1)),
+        ("big", 128, (1, 1, 9, 1)),
+        ("large", 192, (1, 1, 9, 1)),
+        ("huge", 352, (1, 1, 9, 1)),
+        ("giant", 512, (1, 1, 11, 2)),
+    ]
+
+    for size_name, embed_dim, block_structure in sizes:
+        diffusion_lode_runner = DiffusionLodeRunner(
+            default_vars=default_vars,
+            image_size=image_size,
+            patch_size=patch_size,
+            embed_dim=embed_dim,
+            emb_factor=emb_factor,
+            num_heads=num_heads,
+            block_structure=block_structure,
+            window_sizes=window_sizes,
+            patch_merge_scales=patch_merge_scales,
+            verbose=False,
+        ).to(device)
+        param_count = count_torch_params(diffusion_lode_runner, trainable=True)
+        print(f"\nDiffusionLodeRunner-{size_name} parameters: {param_count:,}")
+
+    print("\n" + "="*60)
+    print("All tests completed successfully!")
+    print("="*60)
