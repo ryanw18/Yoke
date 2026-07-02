@@ -350,7 +350,9 @@ class Lightning_DiffusionLodeRunner(LightningModule):
         loss = self.loss_fn(noise_pred, noise)
 
         # Log metrics
-        self.log("train_loss", loss, sync_dist=True, prog_bar=True)
+        if hasattr(self, "trainer") and self.trainer.training:
+            self.log("train_loss", batch_loss, sync_dist=True)
+            self.log("scheduled_prob", scheduled_prob, sync_dist=True)
 
         return loss
 
@@ -387,7 +389,9 @@ class Lightning_DiffusionLodeRunner(LightningModule):
         loss = self.loss_fn(noise_pred, noise)
 
         # Log metrics
-        self.log("val_loss", loss, sync_dist=True, prog_bar=True)
+        if hasattr(self, "trainer") and self.trainer.training:
+            self.log("train_loss", batch_loss, sync_dist=True)
+            self.log("scheduled_prob", scheduled_prob, sync_dist=True)
 
     @torch.no_grad()
     def sample(
