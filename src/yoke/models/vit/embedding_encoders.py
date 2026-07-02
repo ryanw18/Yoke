@@ -509,7 +509,8 @@ if __name__ == "__main__":
     diff_time_emb_model = DiffusionTimeEmbed(embed_dim=embed_dim).to(device)
 
     print("Diffusion Time Temporal Encoding input shape:", x.shape)
-    print("Diffusion Time Temporal Encoding shape:", diff_time_emb_model(x, diff_times).shape) 
+    print("Diffusion Time Temporal Encoding shape:",
+          diff_time_emb_model(x, diff_times).shape)
 
     # Relative window embedding
     wh = 8

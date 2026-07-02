@@ -8,7 +8,6 @@ tokenization for conditioning and noised target.
 """
 
 from collections.abc import Callable, Iterable
-import math
 
 import numpy as np
 import torch
@@ -55,7 +54,8 @@ class DiffusionLodeRunner(nn.Module):
         block_structure (tuple[int, int, int, int]): Tuple specifying the number of SWIN
                                                      encoders in each block structure
                                                      separated by the patch-merge layers.
-        window_sizes (list[tuple[int, int]]): Window sizes within each SWIN encoder/decoder.
+        window_sizes (list[tuple[int, int]]): Window sizes within each
+                                                SWIN encoder/decoder.
         patch_merge_scales (list[tuple[int, int]]): Height and width scales used in
                                                      each patch-merge layer.
         verbose (bool): When TRUE, windowing and merging dimensions are printed
