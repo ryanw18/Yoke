@@ -24,51 +24,10 @@ from yoke.models.vit.embedding_encoders import (
     VarEmbed,
     PosEmbed,
     TimeEmbed,
+    DiffusionTimeEmbed
 )
 from yoke.lr_schedulers import CosineWithWarmupScheduler
 from yoke.helpers.training_design import validate_patch_and_window
-
-class DiffusionTimeEmbed(nn.Module):
-    """Diffusion time encoding/embedding.
-
-    Encodes the diffusion time parameter tau (τ) ∈ [0,1] into a learned embedding
-    of dimension embed_dim, analogous to TimeEmbed for lead times.
-
-    This embedding is used to help track/tag each entry of a batch by it's
-    corresponding diffusion time. After variable aggregation and position encoding,
-    diffusion time encoding is added to patch tokens.
-
-    This embedding consists of a single 1D linear embedding of diffusion times per
-    sample in the batch to the embedding dimension.
-
-    NOTE: Entries for image_size and patch_size should divide eachother evenly.
-
-    Args:
-        embed_dim (int): Embedding dimension, must be divisible by 2.
-
-    Foward method args:
-        diff_times (torch.Tensor): diff_times.shape = (B,). Diffusion
-                                   times of each element of the batch.
-
-    """
-
-    def __init__(self, embed_dim: int) -> None:
-        """Initialization for temporal embedding."""
-        super().__init__()
-
-        self.diff_time_embed = nn.Linear(1, embed_dim)
-
-    def forward(self, x: torch.Tensor, diff_times: torch.Tensor) -> torch.Tensor:
-        """Forward method for temporal embedding."""
-        # The input tensor is shape:
-        #  (B, L, D)=(B, NumTokens, embed_dim)
-
-        # Add diffusion time embedding
-        diff_time_emb = self.diff_time_embed(diff_times.unsqueeze(-1))  # B, D
-        diff_time_emb = diff_time_emb.unsqueeze(1)  # B, 1, D
-        x = x + diff_time_emb  # B, L, D
-
-        return x
 
 
 class DiffusionLodeRunner(nn.Module):
