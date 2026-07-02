@@ -244,8 +244,7 @@ def test_var_embed_weight_initialization(default_vars: list[str]) -> None:
     var_embed = VarEmbed(default_vars, embed_dim)
 
     # Check that weights are initialized (not all zeros)
-    assert not torch.allclose(var_embed.var_embed,
-                              torch.zeros_like(var_embed.var_embed))
+    assert not torch.allclose(var_embed.var_embed, torch.zeros_like(var_embed.var_embed))
 
 
 # ============================================================================
@@ -325,8 +324,7 @@ def test_pos_embed_weight_initialization() -> None:
     pos_embed = PosEmbed(embed_dim, patch_size, image_size, num_patches)
 
     # Check that weights are initialized (not all zeros)
-    assert not torch.allclose(pos_embed.pos_embed,
-                              torch.zeros_like(pos_embed.pos_embed))
+    assert not torch.allclose(pos_embed.pos_embed,torch.zeros_like(pos_embed.pos_embed))
 
 
 def test_pos_embed_different_image_sizes() -> None:
