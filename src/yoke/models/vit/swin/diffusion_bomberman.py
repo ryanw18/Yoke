@@ -26,6 +26,7 @@ from yoke.models.vit.embedding_encoders import (
     TimeEmbed,
     DiffusionTimeEmbed
 )
+from yoke.utils.diffusion.noise_schedulers import VPCosineNoiseSchedule
 from yoke.lr_schedulers import CosineWithWarmupScheduler
 from yoke.helpers.training_design import validate_patch_and_window
 
@@ -262,100 +263,6 @@ class DiffusionLodeRunner(nn.Module):
         return epsilon_pred
 
 
-class VPNoiseSchedule:
-    """Variance-preserving (VP) noise schedule.
-
-    Implements the VP forward diffusion process:
-        y_tau = alpha(tau) * y + sigma(tau) * epsilon
-    where alpha(tau)^2 + sigma(tau)^2 = 1
-
-    Uses a cosine schedule for smooth interpolation.
-    """
-
-    def __init__(self) -> None:
-        """Initialization for VP noise schedule."""
-        #I don't know if we need an init
-        pass
-
-    def alpha(self, tau: torch.Tensor) -> torch.Tensor:
-        """Compute coefficient alpha(tau) = cos(pi*tau/2).
-
-        Args:
-            tau: Diffusion time in [0, 1], shape (B,) or (B, 1).
-
-        Returns:
-            alpha(tau) values, same shape as tau.
-        """
-        return torch.cos(math.pi * tau / 2.0)
-
-    def sigma(self, tau: torch.Tensor) -> torch.Tensor:
-        """Compute coefficient sigma(tau) = sin(pi*tau/2).
-
-        Args:
-            tau: Diffusion time in [0, 1], shape (B,) or (B, 1).
-
-        Returns:
-            sigma(tau) values, same shape as tau.
-        """
-        return torch.sin(math.pi * tau / 2.0)
-
-    def forward_diffusion(
-        self, y: torch.Tensor, tau: torch.Tensor, noise: torch.Tensor = None
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Apply forward diffusion process.
-
-        Implements: y_tau = alpha(tau) * y + sigma(tau) * noise.
-
-        Args:
-            y: Clean target of shape (B, C, H, W).
-            tau: Diffusion time in [0, 1], shape (B,).
-            noise: Optional pre-sampled noise. If None, samples from N(0, I).
-
-        Returns:
-            y_tau: Noised target of shape (B, C, H, W).
-            noise: The noise that was added, shape (B, C, H, W).
-        """
-        if noise is None:
-            noise = torch.randn_like(y)
-
-        # Reshape tau for broadcasting: (B,) -> (B, 1, 1, 1)
-        tau_expanded = tau.view(-1, 1, 1, 1)
-
-        # Compute coefficients
-        alpha_tau = self.alpha(tau_expanded)
-        sigma_tau = self.sigma(tau_expanded)
-
-        # Apply VP forward process: y_tau = α(τ)*y + σ(τ)*ε
-        y_tau = alpha_tau * y + sigma_tau * noise
-
-        return y_tau, noise
-
-    def remove_noise(
-        self, y_tau: torch.Tensor, tau: torch.Tensor, noise: torch.Tensor
-    ) -> torch.Tensor:
-        """Removes noise from target data.
-
-        Implements: ŷ_0 = (y_tau - sigma(tau)*noise) / alpha(tau)
-
-        Args:
-            y_tau: Noised target of shape (B, C, H, W).
-            tau: Diffusion time in [0, 1], shape (B,).
-            noise: noise of shape (B, C, H, W).
-
-        Returns:
-            Denoised target of shape (B, C, H, W).
-        """
-        # Reshape tau for broadcasting
-        tau_expanded = tau.view(-1, 1, 1, 1)
-
-        alpha_tau = self.alpha(tau_expanded)
-        sigma_tau = self.sigma(tau_expanded)
-
-        y0_pred = (y_tau - sigma_tau * noise) / (alpha_tau + 1e-8)
-
-        return y0_pred
-
-
 class Lightning_DiffusionLodeRunner(LightningModule):
     """Lightning wrapper for DiffusionLodeRunner.
 
@@ -369,7 +276,7 @@ class Lightning_DiffusionLodeRunner(LightningModule):
         lr_scheduler (_LRScheduler): Learning-rate scheduler class.
         scheduler_params (dict): Keyword arguments for scheduler initialization.
         loss_fn (Callable): Loss function for noise prediction (default: MSE).
-        noise_schedule (VPNoiseSchedule): VP noise schedule for diffusion.
+        noise_schedule (VPCosineNoiseSchedule): VP noise schedule for diffusion.
     """
 
     def __init__(
@@ -380,7 +287,7 @@ class Lightning_DiffusionLodeRunner(LightningModule):
         lr_scheduler: _LRScheduler = None,
         scheduler_params: dict = None,
         loss_fn: Callable = nn.MSELoss(),
-        noise_schedule: VPNoiseSchedule = None,
+        noise_schedule: VPCosineNoiseSchedule = None,
     ) -> None:
         """Initialize Lightning wrapper."""
         super().__init__()
@@ -388,7 +295,7 @@ class Lightning_DiffusionLodeRunner(LightningModule):
         self.lr_scheduler = lr_scheduler or CosineWithWarmupScheduler
         self.scheduler_params = scheduler_params or {}
         self.loss_fn = loss_fn
-        self.noise_schedule = noise_schedule or VPNoiseSchedule()
+        self.noise_schedule = noise_schedule or VPCosineNoiseSchedule()
 
         # Register buffers for device management
         self.register_buffer("in_vars", in_vars)
