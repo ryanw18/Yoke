@@ -24,28 +24,17 @@ class DiffusionLodeRunner_temporal_DataSet(Dataset):
     """Temporal dataset for DiffusionLodeRunner training.
 
     This dataset returns tuples for training a conditional diffusion model:
-    - x: Conditioning input (current frame) of shape (B, C_in, H, W)
-    - y_tau: Noised target (future frame with noise) of shape (B, C_out, H, W)
+    - x: Conditioning input of shape (B, C_in, H, W)
+         hydro fields at time t
+    - y_tau: Noised target of shape (B, C_out, H, W)
+        hydro fields at time t + delta_t (t + Δt)
+        with diffusion noise at 'time' tau (τ) applied
     - noise: The noise that was added of shape (B, C_out, H, W)
-    - lead_times: Time offset between frames (Δt)
+    - lead_times: Time offset between frames delta_t (Δt)
     - tau: Diffusion time in [0, 1]
 
-    The forward diffusion and noise sampling are handled by the dataset,
-    allowing the training loop to focus on noise prediction.
-
-    Args:
-        LSC_NPZ_DIR (str): Location of LSC NPZ files.
-        file_prefix_list (str): Text file listing unique prefixes corresponding
-            to unique simulations.
-        max_timeIDX_offset (int): Maximum timesteps-ahead to attempt prediction for.
-            A prediction image will be chosen within this timeframe at random.
-        max_file_checks (int): Maximum number of times indices are generated
-            before throwing an error if files don't exist.
-        half_image (bool): If True, returns half-images without reflection.
-        in_vars (list[str]): List of hydro field names for conditioning input.
-        out_vars (list[str]): List of hydro field names for target output.
-        transform (Callable, optional): Transform applied to loaded data before returning.
-        noise_schedule (VPCosineNoiseSchedule, optional): Noise scheduler for forward diffusion.
+    The dataset finds pairs of frames seperated by lead time delta_t, denoted (x, y)
+    and applies the forward diffusion process to y to produce y_tau and noise.
     """
 
     def __init__(
@@ -57,16 +46,43 @@ class DiffusionLodeRunner_temporal_DataSet(Dataset):
         half_image: bool = True,
         in_vars: list[str] = None,
         out_vars: list[str] = None,
-        transform: Callable = None,
         noise_schedule: VPCosineNoiseSchedule = None,
     ) -> None:
-        """Initialize DiffusionLodeRunner temporal dataset."""
+        """Initialize DiffusionLodeRunner temporal dataset.
+
+        Args:
+            LSC_NPZ_DIR (str): Location of LSC NPZ files.
+            file_prefix_list (str): Text file listing unique prefixes corresponding
+                                    to unique simulations.
+            max_timeIDX_offset (int): Maximum timesteps-ahead to attempt
+                                      prediction for. A prediction image will be chosen
+                                      within this timeframe at random.
+            max_file_checks (int): This dataset generates two random time indices and
+                                   checks if the corresponding files exist. This
+                                   argument controls the maximum number of times indices
+                                   are generated before throwing an error.
+            half_image (bool): If True then returned images are NOT reflected about axis
+                               of symmetry and half-images are returned instead.
+            hydro_fields (np.array, optional): Array of hydro field names to be included.
+                                               Defaults to:
+                                               [
+                                                   "density_case",
+                                                   "density_cushion",
+                                                   "density_maincharge",
+                                                   "density_outside_air",
+                                                   "density_striker",
+                                                   "density_throw",
+                                                   "Uvelocity",
+                                                   "Wvelocity",
+                                               ].
+            noise_schedule (VPCosineNoiseSchedule, optional): Noise scheduler
+                                                            for forward diffusion.
+        """
         # Model Arguments
         self.LSC_NPZ_DIR = LSC_NPZ_DIR
         self.max_timeIDX_offset = max_timeIDX_offset
         self.max_file_checks = max_file_checks
         self.half_image = half_image
-        self.transform = transform
         self.noise_schedule = noise_schedule or VPCosineNoiseSchedule()
 
         # Default hydro fields if not specified
@@ -228,11 +244,6 @@ class DiffusionLodeRunner_temporal_DataSet(Dataset):
         # Close the npzs
         start_npz.close()
         end_npz.close()
-
-        # Apply transforms if requested
-        if self.transform is not None:
-            x = self.transform(x)
-            y = self.transform(y)
 
         # Sample diffusion time uniformly from [0, 1]
         tau = torch.rand(1).item()  # Scalar value
