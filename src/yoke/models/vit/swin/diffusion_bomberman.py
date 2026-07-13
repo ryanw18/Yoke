@@ -318,23 +318,18 @@ class Lightning_DiffusionLodeRunner(LightningModule):
         """Execute training step with denoising score matching.
 
         Args:
-            batch: Tuple of (x, y, lead_times) where:
+            batch: Tuple of (x, y_tau, noise, lead_times, tau) where:
                 x: Conditioning input of shape (B, C_in, H, W).
-                y: Clean target of shape (B, C_out, H, W).
+                y_tau: Noised target of shape (B, C_out, H, W).
+                noise: Ground truth noise of shape (B, C_out, H, W).
                 lead_times: Lead time values of shape (B,).
+                tau: Diffusion time values of shape (B,) in [0, 1].
             batch_idx: Batch index.
 
         Returns:
             Loss value.
         """
-        x, y, lead_times = batch
-
-        # Sample diffusion times uniformly from [0, 1]
-        batch_size = x.shape[0]
-        tau = torch.rand(batch_size, device=x.device)
-
-        # Apply forward diffusion to get noised targets
-        y_tau, noise = self.noise_schedule.forward_diffusion(y, tau)
+        x, y_tau, noise, lead_times, tau = batch
 
         # Predict noise
         noise_pred = self.model(
@@ -360,20 +355,15 @@ class Lightning_DiffusionLodeRunner(LightningModule):
         """Execute validation step.
 
         Args:
-            batch: Tuple of (x, y, lead_times) where:
+            batch: Tuple of (x, y_tau, noise, lead_times, tau) where:
                 x: Conditioning input of shape (B, C_in, H, W).
-                y: Clean target of shape (B, C_out, H, W).
+                y_tau: Noised target of shape (B, C_out, H, W).
+                noise: Ground truth noise of shape (B, C_out, H, W).
                 lead_times: Lead time values of shape (B,).
+                tau: Diffusion time values of shape (B,) in [0, 1].
             batch_idx: Batch index.
         """
-        x, y, lead_times = batch
-
-        # Sample diffusion times
-        batch_size = x.shape[0]
-        tau = torch.rand(batch_size, device=x.device)
-
-        # Apply forward diffusion
-        y_tau, noise = self.noise_schedule.forward_diffusion(y, tau)
+        x, y_tau, noise, lead_times, tau = batch
 
         # Predict noise
         noise_pred = self.model(
@@ -391,7 +381,6 @@ class Lightning_DiffusionLodeRunner(LightningModule):
         # Log metrics
         if hasattr(self, "trainer") and self.trainer.training:
             self.log("train_loss", batch_loss, sync_dist=True)
-            self.log("scheduled_prob", scheduled_prob, sync_dist=True)
 
     @torch.no_grad()
     def sample(
@@ -575,29 +564,30 @@ if __name__ == "__main__":
         },
     )
 
-    # Test training step (manually compute loss without logging)
-    batch = (x, y, lead_times)
-    x_batch, y_batch, lead_times_batch = batch
-
+    # Test training step (manually simulate dataset output)
     # Sample diffusion times
-    batch_size = x_batch.shape[0]
-    tau = torch.rand(batch_size, device=x_batch.device)
+    batch_size = x.shape[0]
+    tau = torch.rand(batch_size, device=x.device)
 
-    # Apply forward diffusion
-    y_tau, noise = L_diffusion_loderunner.noise_schedule.forward_diffusion(y_batch, tau)
+    # Apply forward diffusion (simulating what dataset does)
+    y_tau, noise = L_diffusion_loderunner.noise_schedule.forward_diffusion(y, tau)
+
+    # Create batch as dataset would return it
+    batch = (x, y_tau, noise, lead_times, tau)
+    x_batch, y_tau_batch, noise_batch, lead_times_batch, tau_batch = batch
 
     # Predict noise
     noise_pred = L_diffusion_loderunner.model(
         x=x_batch,
-        y_tau=y_tau,
+        y_tau=y_tau_batch,
         in_vars=L_diffusion_loderunner.in_vars,
         out_vars=L_diffusion_loderunner.out_vars,
         lead_times=lead_times_batch,
-        diffusion_time=tau,
+        diffusion_time=tau_batch,
     )
 
     # Compute loss
-    loss = L_diffusion_loderunner.loss_fn(noise_pred, noise)
+    loss = L_diffusion_loderunner.loss_fn(noise_pred, noise_batch)
     print(f"\nTraining step loss: {loss.item():.6f}")
 
     # Test sampling
