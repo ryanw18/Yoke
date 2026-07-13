@@ -23,7 +23,7 @@ from yoke.models.vit.embedding_encoders import (
     VarEmbed,
     PosEmbed,
     TimeEmbed,
-    DiffusionTimeEmbed
+    DiffusionTimeEmbed,
 )
 from yoke.utils.diffusion.noise_schedulers import VPCosineNoiseSchedule
 from yoke.lr_schedulers import CosineWithWarmupScheduler
@@ -61,6 +61,7 @@ class DiffusionLodeRunner(nn.Module):
         verbose (bool): When TRUE, windowing and merging dimensions are printed
                         during initialization.
     """
+
     def __init__(
         self,
         default_vars: list[str],
@@ -343,11 +344,11 @@ class Lightning_DiffusionLodeRunner(LightningModule):
 
         # Compute loss (MSE between predicted and true noise)
         loss = self.loss_fn(noise_pred, noise)
+        batch_loss = loss.mean()
 
         # Log metrics
         if hasattr(self, "trainer") and self.trainer.training:
             self.log("train_loss", batch_loss, sync_dist=True)
-            self.log("scheduled_prob", scheduled_prob, sync_dist=True)
 
         return loss
 
@@ -377,6 +378,7 @@ class Lightning_DiffusionLodeRunner(LightningModule):
 
         # Compute loss
         loss = self.loss_fn(noise_pred, noise)
+        batch_loss = loss.mean()
 
         # Log metrics
         if hasattr(self, "trainer") and self.trainer.training:
@@ -432,19 +434,13 @@ class Lightning_DiffusionLodeRunner(LightningModule):
             )
 
             # Predict x0
-            y0_pred = self.noise_schedule.remove_noise(
-                y_tau, tau_batch, noise_pred
-            )
+            y0_pred = self.noise_schedule.remove_noise(y_tau, tau_batch, noise_pred)
 
             # DDIM update (deterministic when eta=0)
             if tau_next > 0:
                 tau_next_batch = tau_next.repeat(batch_size)
-                alpha_next = self.noise_schedule.alpha(
-                    tau_next_batch.view(-1, 1, 1, 1)
-                )
-                sigma_next = self.noise_schedule.sigma(
-                    tau_next_batch.view(-1, 1, 1, 1)
-                )
+                alpha_next = self.noise_schedule.alpha(tau_next_batch.view(-1, 1, 1, 1))
+                sigma_next = self.noise_schedule.sigma(tau_next_batch.view(-1, 1, 1, 1))
 
                 # DDIM formula: y_{t-1} = α_{t-1}*ŷ_0 + σ_{t-1}*ε̂
                 y_tau = alpha_next * y0_pred + sigma_next * noise_pred
@@ -511,9 +507,9 @@ if __name__ == "__main__":
     block_structure = (1, 1, 3, 1)
 
     # Test DiffusionLodeRunner architecture
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Testing DiffusionLodeRunner Architecture")
-    print("="*60)
+    print("=" * 60)
 
     diffusion_lode_runner = DiffusionLodeRunner(
         default_vars=default_vars,
@@ -545,9 +541,9 @@ if __name__ == "__main__":
     )
 
     # Test Lightning wrapper initialization
-    print("\n" + "-"*60)
+    print("\n" + "-" * 60)
     print("Testing Lightning Wrapper")
-    print("-"*60)
+    print("-" * 60)
 
     L_diffusion_loderunner = Lightning_DiffusionLodeRunner(
         diffusion_lode_runner,
@@ -591,9 +587,9 @@ if __name__ == "__main__":
     print(f"\nTraining step loss: {loss.item():.6f}")
 
     # Test sampling
-    print("\n" + "-"*60)
+    print("\n" + "-" * 60)
     print("Testing DDIM Sampling")
-    print("-"*60)
+    print("-" * 60)
 
     samples = L_diffusion_loderunner.sample(
         x=x,
@@ -605,9 +601,9 @@ if __name__ == "__main__":
     print(f"Sampled output has NaNs: {torch.isnan(samples).any()}")
 
     # Test different model sizes
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Testing Different Model Sizes")
-    print("="*60)
+    print("=" * 60)
 
     sizes = [
         ("small", 96, (1, 1, 9, 1)),
@@ -633,6 +629,6 @@ if __name__ == "__main__":
         param_count = count_torch_params(diffusion_lode_runner, trainable=True)
         print(f"\nDiffusionLodeRunner-{size_name} parameters: {param_count:,}")
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("All tests completed successfully!")
-    print("="*60)
+    print("=" * 60)

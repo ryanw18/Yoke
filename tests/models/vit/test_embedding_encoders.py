@@ -100,9 +100,7 @@ def test_get_2d_sincos_pos_embed_from_grid_shape() -> None:
     """Test 2D sincos position embedding from grid output shape."""
     embed_dim = 64
     grid_h, grid_w = 8, 10
-    grid = np.stack(
-        np.meshgrid(np.arange(grid_w), np.arange(grid_h)), axis=0
-    )
+    grid = np.stack(np.meshgrid(np.arange(grid_w), np.arange(grid_h)), axis=0)
     grid = grid.reshape([2, 1, grid_h, grid_w])
 
     emb = get_2d_sincos_pos_embed_from_grid(embed_dim, grid)
@@ -189,9 +187,7 @@ def test_var_embed_var_map(default_vars: list[str]) -> None:
         assert var_embed.var_map[var] == i
 
 
-def test_var_embed_forward_shape(
-    default_vars: list[str], device: str
-) -> None:
+def test_var_embed_forward_shape(default_vars: list[str], device: str) -> None:
     """Test VarEmbed forward pass output shape.
 
     Args:
@@ -215,9 +211,7 @@ def test_var_embed_forward_shape(
     assert not torch.isnan(output).any()
 
 
-def test_var_embed_forward_adds_embedding(
-    default_vars: list[str], device: str
-) -> None:
+def test_var_embed_forward_adds_embedding(default_vars: list[str], device: str) -> None:
     """Test VarEmbed forward pass adds embedding to input.
 
     Args:
@@ -250,9 +244,7 @@ def test_var_embed_weight_initialization(default_vars: list[str]) -> None:
     var_embed = VarEmbed(default_vars, embed_dim)
 
     # Check that weights are initialized (not all zeros)
-    assert not torch.allclose(
-        var_embed.var_embed, torch.zeros_like(var_embed.var_embed)
-    )
+    assert not torch.allclose(var_embed.var_embed, torch.zeros_like(var_embed.var_embed))
 
 
 # ============================================================================
@@ -289,9 +281,7 @@ def test_pos_embed_forward_shape(device: str) -> None:
     num_patches = 64
     batch_size = 3
 
-    pos_embed = PosEmbed(
-        embed_dim, patch_size, image_size, num_patches
-    ).to(device)
+    pos_embed = PosEmbed(embed_dim, patch_size, image_size, num_patches).to(device)
 
     # Input shape: (B, L, D)
     x = torch.randn(batch_size, num_patches, embed_dim).to(device)
@@ -314,9 +304,7 @@ def test_pos_embed_forward_adds_embedding(device: str) -> None:
     num_patches = 64
     batch_size = 2
 
-    pos_embed = PosEmbed(
-        embed_dim, patch_size, image_size, num_patches
-    ).to(device)
+    pos_embed = PosEmbed(embed_dim, patch_size, image_size, num_patches).to(device)
 
     x = torch.randn(batch_size, num_patches, embed_dim).to(device)
 
@@ -336,9 +324,8 @@ def test_pos_embed_weight_initialization() -> None:
     pos_embed = PosEmbed(embed_dim, patch_size, image_size, num_patches)
 
     # Check that weights are initialized (not all zeros)
-    assert not torch.allclose(
-        pos_embed.pos_embed, torch.zeros_like(pos_embed.pos_embed)
-    )
+    zeros_like_check = torch.zeros_like(pos_embed.pos_embed)
+    assert not torch.allclose(pos_embed.pos_embed, zeros_like_check)
 
 
 def test_pos_embed_different_image_sizes() -> None:
@@ -660,9 +647,7 @@ def test_diffusion_time_embed_different_tau_values(device: str) -> None:
 # ============================================================================
 
 
-def test_var_embed_single_variable(
-    default_vars: list[str], device: str
-) -> None:
+def test_var_embed_single_variable(default_vars: list[str], device: str) -> None:
     """Test VarEmbed with single variable.
 
     Args:
@@ -697,9 +682,7 @@ def test_pos_embed_single_patch(device: str) -> None:
     num_patches = 1
     batch_size = 2
 
-    pos_embed = PosEmbed(
-        embed_dim, patch_size, image_size, num_patches
-    ).to(device)
+    pos_embed = PosEmbed(embed_dim, patch_size, image_size, num_patches).to(device)
 
     x = torch.randn(batch_size, num_patches, embed_dim).to(device)
 
@@ -775,9 +758,7 @@ def test_embedding_combination(default_vars: list[str], device: str) -> None:
 
     # Create all embedding modules
     var_embed = VarEmbed(default_vars, embed_dim).to(device)
-    pos_embed = PosEmbed(
-        embed_dim, patch_size, image_size, num_patches
-    ).to(device)
+    pos_embed = PosEmbed(embed_dim, patch_size, image_size, num_patches).to(device)
     time_embed = TimeEmbed(embed_dim).to(device)
     diff_time_embed = DiffusionTimeEmbed(embed_dim).to(device)
 

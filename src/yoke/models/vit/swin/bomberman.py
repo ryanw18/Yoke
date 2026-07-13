@@ -387,9 +387,9 @@ if __name__ == "__main__":
     block_structure = (1, 1, 3, 1)
 
     # Test LodeRunner architecture
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Testing LodeRunner Architecture")
-    print("="*60)
+    print("=" * 60)
 
     lode_runner = LodeRunner(
         default_vars=default_vars,
@@ -413,9 +413,9 @@ if __name__ == "__main__":
     )
 
     # Test Lightning wrapper initialization
-    print("\n" + "-"*60)
+    print("\n" + "-" * 60)
     print("Testing Lightning Wrapper")
-    print("-"*60)
+    print("-" * 60)
 
     L_loderunner = Lightning_LodeRunner(
         lode_runner,
@@ -435,9 +435,9 @@ if __name__ == "__main__":
     print(f"\nLightning LodeRunner-tiny output shape: {L_loderunner_out.shape}")
 
     # Test different model sizes
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Testing Different Model Sizes")
-    print("="*60)
+    print("=" * 60)
 
     sizes = [
         ("small", 96, (1, 1, 9, 1)),
@@ -463,6 +463,6 @@ if __name__ == "__main__":
         param_count = count_torch_params(lode_runner, trainable=True)
         print(f"\nLodeRunner-{size_name} parameters: {param_count:,}")
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("All tests completed successfully!")
-    print("="*60)
+    print("=" * 60)

@@ -80,9 +80,7 @@ def test_forward_diffusion_with_presampled_noise(
     tau = torch.rand(batch_size)
     noise_input = torch.randn_like(y)
 
-    y_tau, noise_output = noise_schedule.forward_diffusion(
-        y, tau, noise=noise_input
-    )
+    y_tau, noise_output = noise_schedule.forward_diffusion(y, tau, noise=noise_input)
 
     assert torch.allclose(noise_input, noise_output)
 
