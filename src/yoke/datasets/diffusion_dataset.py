@@ -23,18 +23,18 @@ from yoke.utils.diffusion.noise_schedulers import VPCosineNoiseSchedule
 class DiffusionLodeRunner_temporal_DataSet(Dataset):
     """Temporal dataset for DiffusionLodeRunner training.
 
-    This dataset returns tuples for training a conditional diffusion model:
-    - x: Conditioning input of shape (B, C_in, H, W)
-         hydro fields at time t
-    - y_tau: Noised target of shape (B, C_out, H, W)
-        hydro fields at time t + delta_t (t + Δt)
-        with diffusion noise at 'time' tau (τ) applied
-    - noise: The noise that was added of shape (B, C_out, H, W)
-    - lead_times: Time offset between frames delta_t (Δt)
-    - tau: Diffusion time in [0, 1]
+    This dataset is for multi-channel images at two different times from
+    the *Perturned Layer Interface* simulation.
+    The channels in the images returned are the densities for
+    each material at a given time as well as the (R, Z)-velocity
+    fields.
 
-    The dataset finds pairs of frames seperated by lead time delta_t, denoted (x, y)
-    and applies the forward diffusion process to y to produce y_tau and noise.
+    The dataset finds pairs of images seperated by lead time delta_t, denoted (x, y)
+    and applies the forward diffusion process specified by the diffusion time tau
+    to y to produce y_tau and noise.
+
+    The dataset returns the tuple (x, y_tau, noise, delta_t, tau).
+
     """
 
     def __init__(
@@ -44,8 +44,18 @@ class DiffusionLodeRunner_temporal_DataSet(Dataset):
         max_timeIDX_offset: int,
         max_file_checks: int,
         half_image: bool = True,
-        in_vars: list[str] = None,
-        out_vars: list[str] = None,
+        hydro_fields: np.array = np.array(
+            [
+                "density_case",
+                "density_cushion",
+                "density_maincharge",
+                "density_outside_air",
+                "density_striker",
+                "density_throw",
+                "Uvelocity",
+                "Wvelocity",
+            ]
+        ),
         noise_schedule: VPCosineNoiseSchedule = None,
     ) -> None:
         """Initialize DiffusionLodeRunner temporal dataset.
@@ -84,21 +94,6 @@ class DiffusionLodeRunner_temporal_DataSet(Dataset):
         self.max_file_checks = max_file_checks
         self.half_image = half_image
         self.noise_schedule = noise_schedule or VPCosineNoiseSchedule()
-
-        # Default hydro fields if not specified
-        default_fields = [
-            "density_case",
-            "density_cushion",
-            "density_maincharge",
-            "density_outside_air",
-            "density_striker",
-            "density_throw",
-            "Uvelocity",
-            "Wvelocity",
-        ]
-
-        self.in_vars = in_vars if in_vars is not None else default_fields
-        self.out_vars = out_vars if out_vars is not None else default_fields
 
         # Create filelist
         with open(file_prefix_list) as f:
@@ -152,11 +147,16 @@ class DiffusionLodeRunner_temporal_DataSet(Dataset):
             index: Dataset index.
 
         Returns:
-            x: Conditioning input of shape (C_in, H, W).
-            y_tau: Noised target of shape (C_out, H, W).
-            noise: The noise that was added of shape (C_out, H, W).
-            lead_time: Time offset as scalar tensor.
-            tau: Diffusion time in [0, 1] as scalar tensor.
+            - x: Conditioning input of shape (B, C_in, H, W)
+                    images at time t
+            - y_tau: Noised target of shape (B, C_out, H, W)
+                    images at time t + delta_t (t + Δt)
+                    with diffusion noise at 'time' tau (τ) applied
+            - noise: The noise that was added of shape (B, C_out, H, W)
+            - lead_times: shape (B,) scalar tensor
+                Time offset between frames delta_t (Δt)
+            - tau: shape (B,) scalar tensor
+                    Diffusion time in [0, 1]
         """
         # Rotate index if necessary
         index = index % self.Nsamples
@@ -233,10 +233,10 @@ class DiffusionLodeRunner_temporal_DataSet(Dataset):
             raise e
 
         # Load conditioning input (current frame)
-        x = self._load_hydro_fields(start_npz, self.in_vars)
+        x = self._load_hydro_fields(start_npz, self.hydro_fields)
 
         # Load clean target (future frame)
-        y = self._load_hydro_fields(end_npz, self.out_vars)
+        y = self._load_hydro_fields(end_npz, self.hydro_fields)
 
         # Calculate lead time (time offset between frames)
         lead_time = torch.tensor(0.25 * (endIDX - startIDX), dtype=torch.float32)
@@ -250,8 +250,9 @@ class DiffusionLodeRunner_temporal_DataSet(Dataset):
         tau_tensor = torch.tensor(tau, dtype=torch.float32)
 
         # Apply forward diffusion to get noised target
-        y_tau, noise = self.noise_schedule.forward_diffusion(y.unsqueeze(0), tau_tensor.unsqueeze(0))
-        
+        y_tau, noise = self.noise_schedule.forward_diffusion(y.unsqueeze(0),
+                                                             tau_tensor.unsqueeze(0))
+
         # Remove batch dimension added for forward_diffusion
         y_tau = y_tau.squeeze(0)
         noise = noise.squeeze(0)
