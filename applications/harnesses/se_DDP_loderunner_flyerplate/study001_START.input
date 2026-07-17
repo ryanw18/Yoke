@@ -1,9 +1,9 @@
 --studyIDX 1
 --Ngpus 1
 --Knodes 1
---NPZ_DIR /lustre/roscratch1/rworley/flyer
---CSV_FILEPATH /Users/rworley/Downloads/test_csv.csv
---FILELIST_DIR /lustre/roscratch1/rworley/loderunner_flyer_smoke/filelists/
+--NPZ_DIR /net/sescratch1/exempt/artimis/users/rworley/flyer
+--CSV_FILEPATH /usr/projects/artimis/mpmm/ryanw/test_csv.csv
+--FILELIST_DIR /net/sescratch1/exempt/artimis/users/rworley/loderunner_flyer_smoke/filelists/
 --train_filelist train_prefixes.txt
 --validation_filelist val_prefixes.txt
 --test_filelist test_prefixes.txt

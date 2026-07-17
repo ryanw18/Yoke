@@ -1,11 +1,14 @@
 #!/bin/bash
+
 #SBATCH --job-name=flyer_smoke_s001_e0001
-#SBATCH --account=xd
-#SBATCH --partition=debug
+#SBATCH --account=y26_artimis-fmod_g
+#SBATCH --partition=standard
 #SBATCH --time=00:10:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
+#SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=8
+#SBATCH --mem-per-gpu=120G
 #SBATCH --output=study001_epoch0001.out
 #SBATCH --error=study001_epoch0001.err
 #SBATCH -vvv
@@ -15,8 +18,17 @@ MASTER_PORT=$(shuf -i 1024-65535 -n 1)
 export MASTER_ADDR
 export MASTER_PORT
 
-source ../../../.venv/bin/activate
+sinfo -o "%P %.24G %N"
+srun -vv --cpu-bind=verbose /usr/bin/echo $CUDA_AVAILABLE_DEVICES
+nvidia-smi
 
-export OMP_NUM_THREADS=8
+export NCCL_SOCKET_IFNAME=ib0
+export NCCL_IB_HCA=mlx5_0
+export NCCL_IB_GID_INDEX=3
+export SLURM_CPU_BIND=verbose
 
-srun python -u train_LodeRunner_ddp_flyerplate.py @study001_START.input
+source /usr/projects/artimis/mpmm/ryanw/Yoke/.venv/bin/activate
+
+export OMP_NUM_THREADS=10
+
+srun -vv --cpu-bind=verbose python -u train_LodeRunner_ddp_flyerplate.py @study001_START.input
