@@ -890,7 +890,7 @@ class TemporalDataSet(Dataset[_TemporalSample]):
 
         for start_idx in candidates[:5]:
             start_file = f"{prefix}_pvi_idx{start_idx:05d}.npz"
-            start_fp = Path(self.npz_dir) / file_prefix / start_file
+            start_fp = Path(self.npz_dir) / prefix / start_file
             if not start_fp.is_file():
                 continue
 
