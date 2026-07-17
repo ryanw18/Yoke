@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --account=y26_artimis-fmod_g
+#SBATCH --account=y26_artimis-test_g
 #SBATCH --partition=standard
 #SBATCH --qos=debug
 #SBATCH --time=00:10:00
