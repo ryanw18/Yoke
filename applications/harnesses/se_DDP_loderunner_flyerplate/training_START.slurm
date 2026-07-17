@@ -2,7 +2,6 @@
 
 #SBATCH --account=y26_artimis-test_g
 #SBATCH --partition=standard
-#SBATCH --qos=debug
 #SBATCH --time=00:10:00
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
