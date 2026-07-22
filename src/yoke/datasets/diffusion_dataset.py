@@ -97,7 +97,7 @@ class DiffusionLSC_temporal_DataSet(Dataset):
         self.max_file_checks = max_file_checks
         self.half_image = half_image
         self.in_vars = in_vars
-        self.out_vars = out_vars or in_vars
+        self.out_vars = out_vars if out_vars is not None else in_vars
         self.noise_schedule = noise_schedule or VPCosineNoiseSchedule()
 
         # Create filelist
