@@ -44,7 +44,7 @@ class DiffusionLSC_temporal_DataSet(Dataset):
         max_timeIDX_offset: int,
         max_file_checks: int,
         half_image: bool = True,
-        hydro_fields: np.array = np.array(
+        in_vars: np.array = np.array(
             [
                 "density_case",
                 "density_cushion",
@@ -56,9 +56,10 @@ class DiffusionLSC_temporal_DataSet(Dataset):
                 "Wvelocity",
             ]
         ),
+        out_vars: np.array = None,
         noise_schedule: VPCosineNoiseSchedule = None,
     ) -> None:
-        """Initialize DiffusionLodeRunner temporal dataset.
+        """Initialize DiffusionLSC temporal dataset.
 
         Args:
             LSC_NPZ_DIR (str): Location of LSC NPZ files.
@@ -73,7 +74,7 @@ class DiffusionLSC_temporal_DataSet(Dataset):
                                    are generated before throwing an error.
             half_image (bool): If True then returned images are NOT reflected about axis
                                of symmetry and half-images are returned instead.
-            hydro_fields (np.array, optional): Array of hydro field names to be included.
+            in_vars (np.array, optional): Array of hydro field names for the input x.
                                                Defaults to:
                                                [
                                                    "density_case",
@@ -85,6 +86,8 @@ class DiffusionLSC_temporal_DataSet(Dataset):
                                                    "Uvelocity",
                                                    "Wvelocity",
                                                ].
+            out_vars (np.array, optional): Array of hydro field names for the output y.
+                                               If None, uses same fields as in_vars.
             noise_schedule (VPCosineNoiseSchedule, optional): Noise scheduler
                                                             for forward diffusion.
         """
@@ -93,6 +96,8 @@ class DiffusionLSC_temporal_DataSet(Dataset):
         self.max_timeIDX_offset = max_timeIDX_offset
         self.max_file_checks = max_file_checks
         self.half_image = half_image
+        self.in_vars = in_vars
+        self.out_vars = out_vars or in_vars
         self.noise_schedule = noise_schedule or VPCosineNoiseSchedule()
 
         # Create filelist
@@ -233,10 +238,10 @@ class DiffusionLSC_temporal_DataSet(Dataset):
             raise e
 
         # Load conditioning input (current frame)
-        x = self._load_hydro_fields(start_npz, self.hydro_fields)
+        x = self._load_hydro_fields(start_npz, self.in_vars)
 
         # Load clean target (future frame)
-        y = self._load_hydro_fields(end_npz, self.hydro_fields)
+        y = self._load_hydro_fields(end_npz, self.out_vars)
 
         # Calculate lead time (time offset between frames)
         lead_time = torch.tensor(0.25 * (endIDX - startIDX), dtype=torch.float32)
