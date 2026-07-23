@@ -5,12 +5,9 @@ on temporal prediction tasks. The datasets handle loading sequential frames,
 applying forward diffusion, and preparing conditioning information.
 """
 
-import os
 import random
-import re
 import sys
 from pathlib import Path
-from collections.abc import Callable
 
 import numpy as np
 import torch
@@ -146,7 +143,7 @@ class DiffusionLSC_temporal_DataSet(Dataset):
     def __getitem__(
         self, index: int
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Return conditioning input, noised target, noise, lead time, and diffusion time.
+        """Return (x, y_tau, noise, delta_t, tau).
 
         Args:
             index: Dataset index.
