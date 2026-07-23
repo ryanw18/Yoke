@@ -252,8 +252,9 @@ class DiffusionLSC_temporal_DataSet(Dataset):
         tau_tensor = torch.tensor(tau, dtype=torch.float32)
 
         # Apply forward diffusion to get noised target
-        y_tau, noise = self.noise_schedule.forward_diffusion(y.unsqueeze(0),
-                                                             tau_tensor.unsqueeze(0))
+        y_tau, noise = self.noise_schedule.forward_diffusion(
+            y.unsqueeze(0), tau_tensor.unsqueeze(0)
+        )
 
         # Remove batch dimension added for forward_diffusion
         y_tau = y_tau.squeeze(0)
@@ -366,6 +367,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"\nError loading sample {i}: {e}")
             import traceback
+
             traceback.print_exc()
 
     # Visualize first sample if requested
@@ -401,7 +403,9 @@ if __name__ == "__main__":
 
             # Plot noise channels
             for ch in range(n_out_channels):
-                im = axes[2, ch].imshow(noise[ch].numpy(), cmap="RdBu_r", vmin=-3, vmax=3)
+                im = axes[2, ch].imshow(
+                    noise[ch].numpy(), cmap="RdBu_r", vmin=-3, vmax=3
+                )
                 axes[2, ch].set_title(f"Noise Ch {ch}")
                 axes[2, ch].axis("off")
                 plt.colorbar(im, ax=axes[2, ch])
@@ -426,6 +430,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Error visualizing sample: {e}")
             import traceback
+
             traceback.print_exc()
 
     print("\nDataset test complete!")
