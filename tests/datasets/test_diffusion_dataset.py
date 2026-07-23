@@ -134,7 +134,9 @@ def test_diffusion_temporal_len(
     assert len(diffusion_temporal_dataset) == int(1e6)
 
 
-@patch("yoke.datasets.diffusion_dataset.volfrac_density", side_effect=mock_volfrac_density)
+@patch(
+    "yoke.datasets.diffusion_dataset.volfrac_density", side_effect=mock_volfrac_density
+)
 @patch(
     "yoke.datasets.diffusion_dataset.LSCread_npz_NaN", side_effect=mock_LSCread_npz_NaN
 )
@@ -174,7 +176,9 @@ def test_diffusion_temporal_getitem(
     assert lead_time.item() >= 0.0
 
 
-@patch("yoke.datasets.diffusion_dataset.volfrac_density", side_effect=mock_volfrac_density)
+@patch(
+    "yoke.datasets.diffusion_dataset.volfrac_density", side_effect=mock_volfrac_density
+)
 @patch(
     "yoke.datasets.diffusion_dataset.LSCread_npz_NaN", side_effect=mock_LSCread_npz_NaN
 )
