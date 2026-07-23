@@ -260,3 +260,172 @@ class DiffusionLSC_temporal_DataSet(Dataset):
         noise = noise.squeeze(0)
 
         return x, y_tau, noise, lead_time, tau_tensor
+
+
+if __name__ == "__main__":
+    import argparse
+    import matplotlib.pyplot as plt
+
+    parser = argparse.ArgumentParser(
+        description="Test DiffusionLSC_temporal_DataSet functionality"
+    )
+    parser.add_argument(
+        "--data_dir",
+        type=str,
+        required=True,
+        help="Directory containing NPZ files",
+    )
+    parser.add_argument(
+        "--file_prefix_list",
+        type=str,
+        required=True,
+        help="Text file with list of file prefixes",
+    )
+    parser.add_argument(
+        "--max_timeIDX_offset",
+        type=int,
+        default=10,
+        help="Maximum time index offset (default: 10)",
+    )
+    parser.add_argument(
+        "--max_file_checks",
+        type=int,
+        default=100,
+        help="Maximum file check attempts (default: 100)",
+    )
+    parser.add_argument(
+        "--half_image",
+        action="store_true",
+        help="Use half images (no reflection)",
+    )
+    parser.add_argument(
+        "--num_samples",
+        type=int,
+        default=5,
+        help="Number of samples to test (default: 5)",
+    )
+    parser.add_argument(
+        "--in_vars",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Input variable names (space-separated)",
+    )
+    parser.add_argument(
+        "--out_vars",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Output variable names (space-separated)",
+    )
+    parser.add_argument(
+        "--visualize",
+        action="store_true",
+        help="Visualize first sample",
+    )
+
+    args = parser.parse_args()
+
+    # Convert variable lists to numpy arrays if provided
+    in_vars = np.array(args.in_vars) if args.in_vars else None
+    out_vars = np.array(args.out_vars) if args.out_vars else None
+
+    # Create dataset
+    print("Creating dataset...")
+    dataset = DiffusionLSC_temporal_DataSet(
+        LSC_NPZ_DIR=args.data_dir,
+        file_prefix_list=args.file_prefix_list,
+        max_timeIDX_offset=args.max_timeIDX_offset,
+        max_file_checks=args.max_file_checks,
+        half_image=args.half_image,
+        in_vars=in_vars,
+        out_vars=out_vars,
+    )
+
+    print(f"Dataset created with {dataset.Nsamples} file prefixes")
+    print(f"Dataset length: {len(dataset)}")
+    print(f"Input variables: {dataset.in_vars}")
+    print(f"Output variables: {dataset.out_vars}")
+    print(f"Half image mode: {dataset.half_image}")
+    print()
+
+    # Test loading samples
+    print(f"Testing {args.num_samples} samples...")
+    for i in range(args.num_samples):
+        try:
+            x, y_tau, noise, lead_time, tau = dataset[i]
+            print(f"\nSample {i}:")
+            print(f"  x shape: {x.shape}")
+            print(f"  y_tau shape: {y_tau.shape}")
+            print(f"  noise shape: {noise.shape}")
+            print(f"  lead_time: {lead_time.item():.4f}")
+            print(f"  tau: {tau.item():.4f}")
+            print(f"  x range: [{x.min().item():.4f}, {x.max().item():.4f}]")
+            print(f"  y_tau range: [{y_tau.min().item():.4f}, {y_tau.max().item():.4f}]")
+            print(f"  noise range: [{noise.min().item():.4f}, {noise.max().item():.4f}]")
+        except Exception as e:
+            print(f"\nError loading sample {i}: {e}")
+            import traceback
+            traceback.print_exc()
+
+    # Visualize first sample if requested
+    if args.visualize:
+        print("\nVisualizing first sample...")
+        try:
+            x, y_tau, noise, lead_time, tau = dataset[0]
+
+            # Create figure with subplots
+            n_in_channels = x.shape[0]
+            n_out_channels = y_tau.shape[0]
+            max_channels = max(n_in_channels, n_out_channels)
+
+            fig, axes = plt.subplots(3, max_channels, figsize=(4 * max_channels, 12))
+            if max_channels == 1:
+                axes = axes.reshape(-1, 1)
+
+            # Plot input channels
+            for ch in range(n_in_channels):
+                im = axes[0, ch].imshow(x[ch].numpy(), cmap="viridis")
+                axes[0, ch].set_title(f"Input Ch {ch}\n{dataset.in_vars[ch]}")
+                axes[0, ch].axis("off")
+                plt.colorbar(im, ax=axes[0, ch])
+
+            # Plot noised output channels
+            for ch in range(n_out_channels):
+                im = axes[1, ch].imshow(y_tau[ch].numpy(), cmap="viridis")
+                axes[1, ch].set_title(
+                    f"Noised Output Ch {ch}\n{dataset.out_vars[ch]}\nτ={tau.item():.3f}"
+                )
+                axes[1, ch].axis("off")
+                plt.colorbar(im, ax=axes[1, ch])
+
+            # Plot noise channels
+            for ch in range(n_out_channels):
+                im = axes[2, ch].imshow(noise[ch].numpy(), cmap="RdBu_r", vmin=-3, vmax=3)
+                axes[2, ch].set_title(f"Noise Ch {ch}")
+                axes[2, ch].axis("off")
+                plt.colorbar(im, ax=axes[2, ch])
+
+            # Hide unused subplots
+            for row in range(3):
+                for ch in range(max_channels):
+                    if (row == 0 and ch >= n_in_channels) or (
+                        row > 0 and ch >= n_out_channels
+                    ):
+                        axes[row, ch].axis("off")
+
+            plt.suptitle(
+                f"Lead time: {lead_time.item():.4f}, Diffusion time τ: {tau.item():.4f}",
+                fontsize=16,
+            )
+            plt.tight_layout()
+            plt.savefig("diffusion_dataset_sample.png", dpi=150, bbox_inches="tight")
+            print("Saved visualization to 'diffusion_dataset_sample.png'")
+            plt.show()
+
+        except Exception as e:
+            print(f"Error visualizing sample: {e}")
+            import traceback
+            traceback.print_exc()
+
+    print("\nDataset test complete!")
