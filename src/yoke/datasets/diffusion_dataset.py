@@ -322,26 +322,34 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Convert variable lists to numpy arrays if provided
-    in_vars = np.array(args.in_vars) if args.in_vars else [
-                                                       "density_case",
-                                                       "density_cushion",
-                                                       "density_maincharge",
-                                                       "density_outside_air",
-                                                       "density_striker",
-                                                       "density_throw",
-                                                       "Uvelocity",
-                                                       "Wvelocity",
-                                                   ]
-    out_vars = np.array(args.out_vars) if args.out_vars else [
-                                                       "density_case",
-                                                       "density_cushion",
-                                                       "density_maincharge",
-                                                       "density_outside_air",
-                                                       "density_striker",
-                                                       "density_throw",
-                                                       "Uvelocity",
-                                                       "Wvelocity",
-                                                   ]
+    in_vars = (
+        np.array(args.in_vars)
+        if args.in_vars
+        else [
+            "density_case",
+            "density_cushion",
+            "density_maincharge",
+            "density_outside_air",
+            "density_striker",
+            "density_throw",
+            "Uvelocity",
+            "Wvelocity",
+        ]
+    )
+    out_vars = (
+        np.array(args.out_vars)
+        if args.out_vars
+        else [
+            "density_case",
+            "density_cushion",
+            "density_maincharge",
+            "density_outside_air",
+            "density_striker",
+            "density_throw",
+            "Uvelocity",
+            "Wvelocity",
+        ]
+    )
 
     # Create dataset
     print("Creating dataset...")
