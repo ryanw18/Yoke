@@ -455,7 +455,8 @@ if __name__ == "__main__":
     from yoke.utils.parameters import count_torch_params
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-
+    print("Torch Device:", device)
+    
     default_vars = [
         "cu_pressure",
         "cu_density",
