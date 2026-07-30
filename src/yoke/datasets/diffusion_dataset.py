@@ -265,7 +265,6 @@ class DiffusionLSC_temporal_DataSet(Dataset):
 
 if __name__ == "__main__":
     import argparse
-    import matplotlib.pyplot as plt
 
     parser = argparse.ArgumentParser(
         description="Test DiffusionLSC_temporal_DataSet functionality"
