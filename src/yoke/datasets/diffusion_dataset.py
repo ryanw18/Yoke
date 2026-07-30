@@ -196,7 +196,7 @@ class DiffusionLSC_temporal_DataSet(Dataset):
 
             if attempt == self.max_file_checks:
                 fnf_msg = (
-                    "In DiffusionLodeRunner_temporal_DataSet, "
+                    "In DiffusionLSC_temporal_DataSet, "
                     "max_file_checks "
                     f"reached for prefix: {file_prefix}"
                 )
@@ -328,8 +328,26 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Convert variable lists to numpy arrays if provided
-    in_vars = np.array(args.in_vars) if args.in_vars else None
-    out_vars = np.array(args.out_vars) if args.out_vars else None
+    in_vars = np.array(args.in_vars) if args.in_vars else [
+                                                       "density_case",
+                                                       "density_cushion",
+                                                       "density_maincharge",
+                                                       "density_outside_air",
+                                                       "density_striker",
+                                                       "density_throw",
+                                                       "Uvelocity",
+                                                       "Wvelocity",
+                                                   ]
+    out_vars = np.array(args.out_vars) if args.out_vars else [
+                                                       "density_case",
+                                                       "density_cushion",
+                                                       "density_maincharge",
+                                                       "density_outside_air",
+                                                       "density_striker",
+                                                       "density_throw",
+                                                       "Uvelocity",
+                                                       "Wvelocity",
+                                                   ]
 
     # Create dataset
     print("Creating dataset...")
