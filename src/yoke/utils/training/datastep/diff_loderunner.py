@@ -52,8 +52,8 @@ def train_diffusion_loderunner_datastep(
     noise = noise.to(device, non_blocking=True)
     lead_times = lead_times.to(torch.float32).to(device, non_blocking=True)
     tau = tau.to(torch.float32).to(device, non_blocking=True)
-    in_vars = in_vars.to(device, non_blocking=True)
-    out_vars = out_vars.to(device, non_blocking=True)
+    #in_vars = in_vars.to(device, non_blocking=True)
+    #out_vars = out_vars.to(device, non_blocking=True)
 
     # Forward pass: predict noise
     noise_pred = model(
