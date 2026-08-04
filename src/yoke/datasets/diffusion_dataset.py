@@ -319,11 +319,6 @@ if __name__ == "__main__":
         default=None,
         help="Output variable names (space-separated)",
     )
-    parser.add_argument(
-        "--visualize",
-        action="store_true",
-        help="Visualize first sample",
-    )
 
     args = parser.parse_args()
 
@@ -384,69 +379,6 @@ if __name__ == "__main__":
             print(f"  noise range: [{noise.min().item():.4f}, {noise.max().item():.4f}]")
         except Exception as e:
             print(f"\nError loading sample {i}: {e}")
-            import traceback
-
-            traceback.print_exc()
-
-    # Visualize first sample if requested
-    if args.visualize:
-        print("\nVisualizing first sample...")
-        try:
-            x, y_tau, noise, lead_time, tau = dataset[0]
-
-            # Create figure with subplots
-            n_in_channels = x.shape[0]
-            n_out_channels = y_tau.shape[0]
-            max_channels = max(n_in_channels, n_out_channels)
-
-            fig, axes = plt.subplots(3, max_channels, figsize=(4 * max_channels, 12))
-            if max_channels == 1:
-                axes = axes.reshape(-1, 1)
-
-            # Plot input channels
-            for ch in range(n_in_channels):
-                im = axes[0, ch].imshow(x[ch].numpy(), cmap="viridis")
-                axes[0, ch].set_title(f"Input Ch {ch}\n{dataset.in_vars[ch]}")
-                axes[0, ch].axis("off")
-                plt.colorbar(im, ax=axes[0, ch])
-
-            # Plot noised output channels
-            for ch in range(n_out_channels):
-                im = axes[1, ch].imshow(y_tau[ch].numpy(), cmap="viridis")
-                axes[1, ch].set_title(
-                    f"Noised Output Ch {ch}\n{dataset.out_vars[ch]}\nτ={tau.item():.3f}"
-                )
-                axes[1, ch].axis("off")
-                plt.colorbar(im, ax=axes[1, ch])
-
-            # Plot noise channels
-            for ch in range(n_out_channels):
-                im = axes[2, ch].imshow(
-                    noise[ch].numpy(), cmap="RdBu_r", vmin=-3, vmax=3
-                )
-                axes[2, ch].set_title(f"Noise Ch {ch}")
-                axes[2, ch].axis("off")
-                plt.colorbar(im, ax=axes[2, ch])
-
-            # Hide unused subplots
-            for row in range(3):
-                for ch in range(max_channels):
-                    if (row == 0 and ch >= n_in_channels) or (
-                        row > 0 and ch >= n_out_channels
-                    ):
-                        axes[row, ch].axis("off")
-
-            plt.suptitle(
-                f"Lead time: {lead_time.item():.4f}, Diffusion time τ: {tau.item():.4f}",
-                fontsize=16,
-            )
-            plt.tight_layout()
-            plt.savefig("diffusion_dataset_sample.png", dpi=150, bbox_inches="tight")
-            print("Saved visualization to 'diffusion_dataset_sample.png'")
-            plt.show()
-
-        except Exception as e:
-            print(f"Error visualizing sample: {e}")
             import traceback
 
             traceback.print_exc()
