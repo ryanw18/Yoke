@@ -14,6 +14,7 @@ from yoke.utils.restart import continuation_setup
 from yoke.utils.dataload import make_distributed_dataloader
 from yoke.utils.checkpointing import load_model_and_optimizer
 from yoke.utils.checkpointing import save_model_and_optimizer
+from yoke.utils.parallel import setup_distributed, cleanup_distributed
 from yoke.lr_schedulers import ConstantWithWarmupScheduler
 from yoke.helpers import cli
 
@@ -56,45 +57,6 @@ parser.set_defaults(
     validation_filelist="lsc240420_prefixes_validation_10pct.txt",
     test_filelist="lsc240420_prefixes_test_10pct.txt",
 )
-
-
-def setup_distributed():
-    # ----- 1) Basic setup & environment variables -----
-    # Rely on Slurm variables: SLURM_PROCID, SLURM_NTASKS, SLURM_LOCALID, etc.
-    rank = int(os.environ["SLURM_PROCID"])  # global rank
-    world_size = int(os.environ["SLURM_NTASKS"])  # total number of processes
-    local_rank = int(os.environ["SLURM_LOCALID"])  # local rank (GPU index on this node)
-
-    master_addr = os.environ["MASTER_ADDR"]
-    master_port = os.environ["MASTER_PORT"]
-
-    print("============================", flush=True)
-    print(f"[Rank {rank}] DDP setup, master_addr: {master_addr}", flush=True)
-    print(f"[Rank {rank}] DDP setup, master_port: {master_port}", flush=True)
-    print(f"[Rank {rank}] DDP setup, rank: {rank}", flush=True)
-    print(f"[Rank {rank}] DDP setup, local_rank: {local_rank}", flush=True)
-    print(f"[Rank {rank}] DDP setup, world_size: {world_size}", flush=True)
-    print("============================", flush=True)
-
-    # ----- 2) Set the current GPU device for this process -----
-    torch.cuda.set_device(local_rank)
-    device = torch.device(f"cuda:{local_rank}")
-
-    # ----- 3) Initialize the process group -----
-    dist.init_process_group(
-        backend="nccl",
-        init_method=f"tcp://{master_addr}:{master_port}",
-        world_size=world_size,
-        rank=rank,
-    )
-
-    return rank, world_size, local_rank, device
-
-
-def cleanup_distributed():
-    # ----- 8) Clean up (optional) -----
-    dist.destroy_process_group()
-
 
 def main(args, rank, world_size, local_rank, device):
     #############################################

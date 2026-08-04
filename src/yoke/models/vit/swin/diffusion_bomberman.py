@@ -448,6 +448,8 @@ class Lightning_DiffusionLodeRunner(LightningModule):
                 # Final step: return predicted x0
                 y_tau = y0_pred
 
+            # NOTE: the case where eta>0 (DDPM) is not implemented here.
+
         return y_tau
 
 
