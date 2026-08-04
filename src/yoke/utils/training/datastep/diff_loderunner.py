@@ -431,7 +431,6 @@ if __name__ == "__main__":
     print("Testing eval_diffusion_loderunner_datastep")
     print("-" * 60)
 
-    data = dataset[0]  # Get a single sample for testing
     noise, noise_pred, per_sample_loss = eval_diffusion_loderunner_datastep(
         data=data_batch,
         model=model,
