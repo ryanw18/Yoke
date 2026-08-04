@@ -192,8 +192,6 @@ def eval_diffusion_loderunner_datastep(
     noise = noise.to(device, non_blocking=True)
     lead_times = lead_times.to(torch.float32).to(device, non_blocking=True)
     tau = tau.to(torch.float32).to(device, non_blocking=True)
-
-    # Ensure in_vars and out_vars are on the correct device
     in_vars = in_vars.to(device, non_blocking=True)
     out_vars = out_vars.to(device, non_blocking=True)
 
@@ -252,10 +250,8 @@ def eval_DDP_diffusion_loderunner_datastep(
     x = x.to(device, non_blocking=True)
     y_tau = y_tau.to(device, non_blocking=True)
     noise = noise.to(device, non_blocking=True)
-    lead_times = lead_times.to(device, non_blocking=True)
-    tau = tau.to(device, non_blocking=True)
-
-    # Ensure in_vars and out_vars are on the correct device
+    lead_times = lead_times.to(torch.float32).to(device, non_blocking=True)
+    tau = tau.to(torch.float32).to(device, non_blocking=True)
     in_vars = in_vars.to(device, non_blocking=True)
     out_vars = out_vars.to(device, non_blocking=True)
 
@@ -287,65 +283,69 @@ def eval_DDP_diffusion_loderunner_datastep(
     return noise, noise_pred, all_losses
 
 
-def sample_diffusion_loderunner_datastep(
-    x: torch.Tensor,
-    lead_times: torch.Tensor,
-    model: torch.nn.Module,
-    device: torch.device,
-    in_vars: torch.Tensor,
-    out_vars: torch.Tensor,
-    num_steps: int = 50,
-    eta: float = 0.0,
-) -> torch.Tensor:
-    """Sampling step for DiffusionLodeRunner using DDIM.
-
-    This function generates samples from the learned conditional distribution
-    by iteratively denoising from pure noise.
-
-    Args:
-        x (torch.Tensor): Conditioning input of shape (B, C_in, H, W)
-        lead_times (torch.Tensor): Lead time values of shape (B,)
-        model (torch.nn.Module): DiffusionLodeRunner model
-        device (torch.device): Device to use for computation
-        in_vars (torch.Tensor): Input variable indices for conditioning
-        out_vars (torch.Tensor): Output variable indices for prediction
-        num_steps (int): Number of denoising steps (default: 50)
-        eta (float): DDIM stochasticity parameter, 0=deterministic (default: 0.0)
-
-    Returns:
-        samples (torch.Tensor): Generated samples of shape (B, C_out, H, W)
-    """
-    # Set model to evaluation mode
-    model.eval()
-
-    # Move inputs to device
-    x = x.to(device, non_blocking=True)
-    lead_times = lead_times.to(device, non_blocking=True)
-    in_vars = in_vars.to(device, non_blocking=True)
-    out_vars = out_vars.to(device, non_blocking=True)
-
-    # Use the model's sample method
-    with torch.no_grad():
-        samples = model.sample(
-            x=x,
-            lead_times=lead_times,
-            num_steps=num_steps,
-            eta=eta,
-        )
-
-    return samples
-
-
+################################################
+# Checking that the Data & Model Work Together
+################################################
 if __name__ == "__main__":
-    """Test the diffusion datastep functions."""
+    """Test the diffusion datastep functions with real dataset."""
+    import argparse
     import sys
     from pathlib import Path
+    import numpy as np
 
     # Add parent directory to path for imports
     sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
 
     from yoke.models.vit.swin.diffusion_bomberman import DiffusionLodeRunner
-    from yoke.utils.diffusion.noise_schedulers import VPCosineNoiseSchedule
+    from yoke.datasets.diffusion_dataset import DiffusionLSC_temporal_DataSet
+
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(
+        description="Test DiffusionLodeRunner datastep functions with real data"
+    )
+    parser.add_argument(
+        "--data_dir",
+        type=str,
+        required=True,
+        help="Directory containing NPZ files",
+    )
+    parser.add_argument(
+        "--file_prefix_list",
+        type=str,
+        required=True,
+        help="Text file with list of file prefixes",
+    )
+    parser.add_argument(
+        "--max_timeIDX_offset",
+        type=int,
+        default=10,
+        help="Maximum time index offset (default: 10)",
+    )
+    parser.add_argument(
+        "--max_file_checks",
+        type=int,
+        default=100,
+        help="Maximum file check attempts (default: 100)",
+    )
+    parser.add_argument(
+        "--half_image",
+        action="store_true",
+        help="Use half images (no reflection)",
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=2,
+        help="Batch size for testing (default: 2)",
+    )
+    parser.add_argument(
+        "--num_batches",
+        type=int,
+        default=2,
+        help="Number of batches to test (default: 2)",
+    )
+
+    args = parser.parse_args()
 
     print("=" * 60)
     print("Testing DiffusionLodeRunner Datastep Functions")
@@ -355,37 +355,45 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"\nUsing device: {device}")
 
-    # Create dummy data matching diffusion dataset output
-    batch_size = 4
-    in_channels = 4
-    out_channels = 4
-    height, width = 1120, 800
+    # Define variables for LSC dataset
+    in_vars = np.array([
+        "density_case",
+        "density_cushion",
+        "density_maincharge",
+        "density_outside_air",
+        "density_striker",
+        "density_throw",
+        "Uvelocity",
+        "Wvelocity",
+    ])
+    out_vars = in_vars  # Same variables for input and output
 
-    x = torch.randn(batch_size, in_channels, height, width)
-    y_tau = torch.randn(batch_size, out_channels, height, width)
-    noise = torch.randn(batch_size, out_channels, height, width)
-    lead_times = torch.rand(batch_size)
-    tau = torch.rand(batch_size)
+    # Create dataset
+    print("\nCreating DiffusionLSC_temporal_DataSet...")
+    dataset = DiffusionLSC_temporal_DataSet(
+        LSC_NPZ_DIR=args.data_dir,
+        file_prefix_list=args.file_prefix_list,
+        max_timeIDX_offset=args.max_timeIDX_offset,
+        max_file_checks=args.max_file_checks,
+        half_image=args.half_image,
+        in_vars=in_vars,
+        out_vars=out_vars,
+    )
+    print(f"Dataset created with {dataset.Nsamples} file prefixes")
 
-    data = (x, y_tau, noise, lead_times, tau)
+    # Get a sample to determine image dimensions
+    print("\nLoading sample to determine dimensions...")
+    sample_x, sample_y_tau, sample_noise, sample_lead_time, sample_tau = dataset[0]
+    height, width = sample_x.shape[1], sample_x.shape[2]
+    in_channels = sample_x.shape[0]
+    out_channels = sample_y_tau.shape[0]
+    print(f"Image dimensions: {height}x{width}")
+    print(f"Input channels: {in_channels}")
+    print(f"Output channels: {out_channels}")
 
-    # Variable indices
-    in_vars = torch.tensor([1, 7, 10, 13])
-    out_vars = torch.tensor([1, 7, 10, 13])
-
-    # Create model
-    default_vars = [
-        "cu_pressure", "cu_density", "cu_temperature",
-        "al_pressure", "al_density", "al_temperature",
-        "ss_pressure", "ss_density", "ss_temperature",
-        "ply_pressure", "ply_density", "ply_temperature",
-        "air_pressure", "air_density", "air_temperature",
-        "hmx_pressure", "hmx_density", "hmx_temperature",
-        "r_vel", "z_vel",
-    ]
-
+    print("\nCreating DiffusionLodeRunner model...")
     model = DiffusionLodeRunner(
-        default_vars=default_vars,
+        default_vars=list(in_vars),
         image_size=(height, width),
         patch_size=(10, 10),
         embed_dim=96,
@@ -396,6 +404,7 @@ if __name__ == "__main__":
         patch_merge_scales=[(2, 2), (2, 2), (2, 2)],
         verbose=False,
     ).to(device)
+    print("Model created successfully")
 
     # Create optimizer and loss function
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
@@ -406,7 +415,8 @@ if __name__ == "__main__":
     print("Testing train_diffusion_loderunner_datastep")
     print("-" * 60)
 
-    noise_gt, noise_pred, per_sample_loss = train_diffusion_loderunner_datastep(
+    data = dataset[0]  # Get a single sample for testing
+    noise, noise_pred, per_sample_loss = train_diffusion_loderunner_datastep(
         data=data,
         model=model,
         optimizer=optimizer,
@@ -416,7 +426,7 @@ if __name__ == "__main__":
         out_vars=out_vars,
     )
 
-    print(f"Ground truth noise shape: {noise_gt.shape}")
+    print(f"Ground truth noise shape: {noise.shape}")
     print(f"Predicted noise shape: {noise_pred.shape}")
     print(f"Per-sample loss shape: {per_sample_loss.shape}")
     print(f"Mean loss: {per_sample_loss.mean().item():.6f}")
@@ -426,7 +436,8 @@ if __name__ == "__main__":
     print("Testing eval_diffusion_loderunner_datastep")
     print("-" * 60)
 
-    noise_gt, noise_pred, per_sample_loss = eval_diffusion_loderunner_datastep(
+    data = dataset[0]  # Get a single sample for testing
+    noise, noise_pred, per_sample_loss = eval_diffusion_loderunner_datastep(
         data=data,
         model=model,
         loss_fn=loss_fn,
@@ -435,39 +446,9 @@ if __name__ == "__main__":
         out_vars=out_vars,
     )
 
-    print(f"Ground truth noise shape: {noise_gt.shape}")
+    print(f"Ground truth noise shape: {noise.shape}")
     print(f"Predicted noise shape: {noise_pred.shape}")
     print(f"Per-sample loss shape: {per_sample_loss.shape}")
     print(f"Mean loss: {per_sample_loss.mean().item():.6f}")
 
-    # Test sampling step
-    print("\n" + "-" * 60)
-    print("Testing sample_diffusion_loderunner_datastep")
-    print("-" * 60)
-
-    # Create a Lightning wrapper for sampling (needed for noise_schedule)
-    from yoke.models.vit.swin.diffusion_bomberman import Lightning_DiffusionLodeRunner
-
-    lightning_model = Lightning_DiffusionLodeRunner(
-        model=model,
-        in_vars=in_vars,
-        out_vars=out_vars,
-    ).to(device)
-
-    samples = sample_diffusion_loderunner_datastep(
-        x=x,
-        lead_times=lead_times,
-        model=lightning_model,
-        device=device,
-        in_vars=in_vars,
-        out_vars=out_vars,
-        num_steps=10,
-        eta=0.0,
-    )
-
-    print(f"Samples shape: {samples.shape}")
-    print(f"Samples range: [{samples.min().item():.4f}, {samples.max().item():.4f}]")
-
-    print("\n" + "=" * 60)
-    print("All tests completed successfully!")
-    print("=" * 60)
+    print("\nTesting completed successfully.")
