@@ -443,7 +443,7 @@ if __name__ == "__main__":
 
     data = dataset[0]  # Get a single sample for testing
     noise, noise_pred, per_sample_loss = eval_diffusion_loderunner_datastep(
-        data=data,
+        data=data_batch,
         model=model,
         loss_fn=loss_fn,
         device=device,
