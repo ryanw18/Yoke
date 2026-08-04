@@ -420,9 +420,9 @@ if __name__ == "__main__":
     print("Testing train_diffusion_loderunner_datastep")
     print("-" * 60)
 
-    torch.tensor(data).unsqueeze(0).to(device)  # Add batch dimension and move to device
+    data_batch = tuple(item.unsqueeze(0) for item in data)
     noise, noise_pred, per_sample_loss = train_diffusion_loderunner_datastep(
-        data=data,
+        data=data_batch,
         model=model,
         optimizer=optimizer,
         loss_fn=loss_fn,
