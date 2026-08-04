@@ -416,14 +416,16 @@ if __name__ == "__main__":
     print("-" * 60)
 
     data = dataset[0]  # Get a single sample for testing
+    in_vars_ch = torch.tensor(list(range(in_channels))) #convert to indicies for training
+    out_vars_ch = torch.tensor(list(range(out_channels)))
     noise, noise_pred, per_sample_loss = train_diffusion_loderunner_datastep(
         data=data,
         model=model,
         optimizer=optimizer,
         loss_fn=loss_fn,
         device=device,
-        in_vars=in_vars,
-        out_vars=out_vars,
+        in_vars=in_vars_ch,
+        out_vars=out_vars_ch,
     )
 
     print(f"Ground truth noise shape: {noise.shape}")
