@@ -23,6 +23,7 @@ from yoke.utils.restart import continuation_setup
 from yoke.utils.dataload import make_distributed_dataloader
 from yoke.utils.checkpointing import load_model_and_optimizer
 from yoke.utils.checkpointing import save_model_and_optimizer
+from yoke.utils.parallel import setup_distributed, cleanup_distributed
 from yoke.lr_schedulers import CosineWithWarmupScheduler
 from yoke.helpers import cli
 
@@ -74,46 +75,6 @@ parser.set_defaults(
     validation_filelist="lsc240420_prefixes_validation_10pct.txt",
     test_filelist="lsc240420_prefixes_test_10pct.txt",
 )
-
-
-def setup_distributed():
-    """Setup distributed training environment."""
-    # Rely on Slurm variables
-    rank = int(os.environ["SLURM_PROCID"])
-    world_size = int(os.environ["SLURM_NTASKS"])
-    local_rank = int(os.environ["SLURM_LOCALID"])
-
-    master_addr = os.environ["MASTER_ADDR"]
-    master_port = os.environ["MASTER_PORT"]
-
-    if rank == 0:
-        print("============================", flush=True)
-        print(f"[Rank {rank}] DDP setup, master_addr: {master_addr}", flush=True)
-        print(f"[Rank {rank}] DDP setup, master_port: {master_port}", flush=True)
-        print(f"[Rank {rank}] DDP setup, rank: {rank}", flush=True)
-        print(f"[Rank {rank}] DDP setup, local_rank: {local_rank}", flush=True)
-        print(f"[Rank {rank}] DDP setup, world_size: {world_size}", flush=True)
-        print("============================", flush=True)
-
-    # Set the current GPU device for this process
-    torch.cuda.set_device(local_rank)
-    device = torch.device(f"cuda:{local_rank}")
-
-    # Initialize the process group
-    dist.init_process_group(
-        backend="nccl",
-        init_method=f"tcp://{master_addr}:{master_port}",
-        world_size=world_size,
-        rank=rank,
-    )
-
-    return rank, world_size, local_rank, device
-
-
-def cleanup_distributed():
-    """Clean up distributed training."""
-    dist.destroy_process_group()
-
 
 def train_diffusion_epoch(
     training_data,
