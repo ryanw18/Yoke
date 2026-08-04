@@ -383,13 +383,18 @@ if __name__ == "__main__":
 
     # Get a sample to determine image dimensions
     print("\nLoading sample to determine dimensions...")
-    sample_x, sample_y_tau, sample_noise, sample_lead_time, sample_tau = dataset[0]
+    data = dataset[0]
+    sample_x, sample_y_tau, sample_noise, sample_lead_time, sample_tau = data
     height, width = sample_x.shape[1], sample_x.shape[2]
     in_channels = sample_x.shape[0]
     out_channels = sample_y_tau.shape[0]
     print(f"Image dimensions: {height}x{width}")
     print(f"Input channels: {in_channels}")
     print(f"Output channels: {out_channels}")
+
+    # Convert to indicies for training
+    in_vars_ch = torch.tensor(list(range(in_channels))) 
+    out_vars_ch = torch.tensor(list(range(out_channels)))
 
     print("\nCreating DiffusionLodeRunner model...")
     model = DiffusionLodeRunner(
@@ -415,9 +420,7 @@ if __name__ == "__main__":
     print("Testing train_diffusion_loderunner_datastep")
     print("-" * 60)
 
-    data = dataset[0]  # Get a single sample for testing
-    in_vars_ch = torch.tensor(list(range(in_channels))) #convert to indicies for training
-    out_vars_ch = torch.tensor(list(range(out_channels)))
+    data.unsqueeze(0).to(device)  # Add batch dimension and move to device
     noise, noise_pred, per_sample_loss = train_diffusion_loderunner_datastep(
         data=data,
         model=model,
