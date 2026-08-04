@@ -334,18 +334,6 @@ if __name__ == "__main__":
         action="store_true",
         help="Use half images (no reflection)",
     )
-    parser.add_argument(
-        "--batch_size",
-        type=int,
-        default=2,
-        help="Batch size for testing (default: 2)",
-    )
-    parser.add_argument(
-        "--num_batches",
-        type=int,
-        default=2,
-        help="Number of batches to test (default: 2)",
-    )
 
     args = parser.parse_args()
 
@@ -449,8 +437,8 @@ if __name__ == "__main__":
         model=model,
         loss_fn=loss_fn,
         device=device,
-        in_vars=in_vars,
-        out_vars=out_vars,
+        in_vars=in_vars_ch,
+        out_vars=out_vars_ch,
     )
 
     print(f"Ground truth noise shape: {noise.shape}")
