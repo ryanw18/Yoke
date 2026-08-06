@@ -463,6 +463,13 @@ if __name__ == "__main__":
     print(f"Input channels: {in_channels}")
     print(f"Output channels: {out_channels}")
 
+
+    # Printing number of batches in training and validation datasets
+    num_train_batches = len(train_loader)
+    num_val_batches = len(val_loader)
+    print(f"\nNumber of training batches: {num_train_batches}")
+    print(f"Number of validation batches: {num_val_batches}")
+
     # Variable indices (all 8 variables: 0-7)
     in_vars = torch.tensor(list(range(in_channels)))
     out_vars = torch.tensor(list(range(out_channels)))
