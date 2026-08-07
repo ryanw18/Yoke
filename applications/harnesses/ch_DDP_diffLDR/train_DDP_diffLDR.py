@@ -19,6 +19,7 @@ from yoke.models.vit.swin.diffusion_bomberman import (
 )
 from yoke.datasets.diffusion_dataset import DiffusionLSC_temporal_DataSet
 from yoke.utils.diffusion.noise_schedulers import VPCosineNoiseSchedule
+from yoke.utils.training.epoch.diff_loderunner import train_DDP_diffusion_loderunner_epoch, eval_DDP_diffusion_loderunner_epoch
 from yoke.utils.restart import continuation_setup
 from yoke.utils.dataload import make_distributed_dataloader
 from yoke.utils.checkpointing import load_model_and_optimizer
@@ -62,161 +63,12 @@ parser.add_argument(
     help="Number of diffusion steps for sampling during validation.",
 )
 
-parser.add_argument(
-    "--ddim_eta",
-    type=float,
-    default=0.0,
-    help="DDIM stochasticity parameter (0 = deterministic).",
-)
-
 # Change some default filepaths
 parser.set_defaults(
     train_filelist="lsc240420_prefixes_train_80pct.txt",
     validation_filelist="lsc240420_prefixes_validation_10pct.txt",
     test_filelist="lsc240420_prefixes_test_10pct.txt",
 )
-
-def train_diffusion_epoch(
-    training_data,
-    validation_data,
-    num_train_batches,
-    num_val_batches,
-    model,
-    in_vars,
-    out_vars,
-    optimizer,
-    loss_fn,
-    LRsched,
-    epochIDX,
-    train_per_val,
-    train_rcrd_filename,
-    val_rcrd_filename,
-    device,
-    rank,
-    world_size,
-):
-    """Train one epoch of DiffusionLodeRunner.
-
-    Args:
-        training_data: Training dataloader.
-        validation_data: Validation dataloader.
-        num_train_batches: Number of training batches per epoch.
-        num_val_batches: Number of validation batches.
-        model: DDP-wrapped DiffusionLodeRunner model.
-        in_vars: Input variable indices.
-        out_vars: Output variable indices.
-        optimizer: Optimizer.
-        loss_fn: Loss function.
-        LRsched: Learning rate scheduler.
-        epochIDX: Current epoch index.
-        train_per_val: Number of training batches between validations.
-        train_rcrd_filename: Training record filename.
-        val_rcrd_filename: Validation record filename.
-        device: Device to use.
-        rank: Process rank.
-        world_size: Total number of processes.
-    """
-    model.train()
-
-    train_iter = iter(training_data)
-    val_iter = iter(validation_data)
-
-    for batchIDX in range(num_train_batches):
-        # Get batch
-        try:
-            x, y_tau, noise, lead_times, tau = next(train_iter)
-        except StopIteration:
-            train_iter = iter(training_data)
-            x, y_tau, noise, lead_times, tau = next(train_iter)
-
-        # Move to device
-        x = x.to(device)
-        y_tau = y_tau.to(device)
-        noise = noise.to(device)
-        lead_times = lead_times.to(device)
-        tau = tau.to(device)
-
-        # Forward pass
-        optimizer.zero_grad()
-        noise_pred = model(
-            x=x,
-            y_tau=y_tau,
-            in_vars=in_vars,
-            out_vars=out_vars,
-            lead_times=lead_times,
-            diffusion_time=tau,
-        )
-
-        # Compute loss
-        loss = loss_fn(noise_pred, noise)
-        batch_loss = loss.mean()
-
-        # Backward pass
-        batch_loss.backward()
-        optimizer.step()
-        LRsched.step()
-
-        # Log training loss
-        if rank == 0:
-            with open(train_rcrd_filename, "a") as f:
-                f.write(f"{epochIDX},{batchIDX},{batch_loss.item():.6f}\n")
-
-        # Validation
-        if (batchIDX + 1) % train_per_val == 0:
-            model.eval()
-            val_losses = []
-
-            with torch.no_grad():
-                for val_idx in range(num_val_batches):
-                    try:
-                        x_val, y_tau_val, noise_val, lead_times_val, tau_val = next(
-                            val_iter
-                        )
-                    except StopIteration:
-                        val_iter = iter(validation_data)
-                        x_val, y_tau_val, noise_val, lead_times_val, tau_val = next(
-                            val_iter
-                        )
-
-                    # Move to device
-                    x_val = x_val.to(device)
-                    y_tau_val = y_tau_val.to(device)
-                    noise_val = noise_val.to(device)
-                    lead_times_val = lead_times_val.to(device)
-                    tau_val = tau_val.to(device)
-
-                    # Forward pass
-                    noise_pred_val = model(
-                        x=x_val,
-                        y_tau=y_tau_val,
-                        in_vars=in_vars,
-                        out_vars=out_vars,
-                        lead_times=lead_times_val,
-                        diffusion_time=tau_val,
-                    )
-
-                    # Compute loss
-                    val_loss = loss_fn(noise_pred_val, noise_val)
-                    val_losses.append(val_loss.mean().item())
-
-            # Average validation loss across all processes
-            avg_val_loss = np.mean(val_losses)
-            val_loss_tensor = torch.tensor(avg_val_loss, device=device)
-            dist.all_reduce(val_loss_tensor, op=dist.ReduceOp.SUM)
-            avg_val_loss = val_loss_tensor.item() / world_size
-
-            # Log validation loss
-            if rank == 0:
-                with open(val_rcrd_filename, "a") as f:
-                    f.write(f"{epochIDX},{batchIDX},{avg_val_loss:.6f}\n")
-                print(
-                    f"Epoch {epochIDX}, Batch {batchIDX}: "
-                    f"Train Loss = {batch_loss.item():.6f}, "
-                    f"Val Loss = {avg_val_loss:.6f}",
-                    flush=True,
-                )
-
-            model.train()
 
 
 def main(args, rank, world_size, local_rank, device):
