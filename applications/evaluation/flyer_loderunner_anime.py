@@ -422,6 +422,13 @@ if __name__ == "__main__":
         cax3 = divider3.append_axes("right", size="10%", pad=0.1)
         fig1.colorbar(img3, cax=cax3).set_label("Discrepancy", fontsize=14)
 
+        rmin, rmax = 0.0, 3.0
+        zmin, zmax = -1.0, 2.0
+
+        for ax in (ax1, ax2, ax3):
+            ax.set_xlim(rmin, rmax)
+            ax.set_ylim(zmin, zmax)
+
         # Save images
         fig1.savefig(
             os.path.join(
