@@ -166,7 +166,7 @@ def loderunner_inference(
     in_vars: torch.Tensor,
     out_vars: torch.Tensor,
     delta_t: torch.Tensor,
-    default_vars: list[str],
+    present_vars: list[str],
 ) -> tuple[torch.Tensor, np.ndarray]:
     """Function to run prediction on a Yoke model and generate the density field.
 
@@ -185,36 +185,36 @@ def loderunner_inference(
     """
     pred_img = model(torch.unsqueeze(input_img, 0), in_vars, out_vars, delta_t)
     pred_rho = np.squeeze(pred_img.detach().numpy())
-    density_idx = flyer_density_indices(default_vars)
+    density_idx = flyer_density_indices(present_vars)
     pred_rho = pred_rho[density_idx, :, :].sum(0)
 
     return pred_img, pred_rho
 
 
-def prepare_input_images(npzfile: str, default_vars: list[str]) -> torch.Tensor:
-    """Prepare input images from NPZ file.
-
-    An NPZ file is similar to a dictionary, in that it has keys and values.
-    The keys are stored in default_vars,
-    and the values are the tensors containing material information.
-
-    Args:
-        npzfile (str): The name of the NPZ file to use.
-        default_vars (list[str]): The keys for the NPZ file.
-
-    Returns:
-        output (torch.Tensor): The combined tensor of all the data from the NPZ file.
-    """
+def prepare_input_images(npzfile: str, default_vars: list[str]) -> tuple[torch.Tensor, list[str]]:
+    """Prepare input images from NPZ file."""
     input_img_list = []
-    for hfield in default_vars:
-        tmp_img = singlePVIarray(npzfile=npzfile, FIELD=hfield)
+    present_vars = []
 
-        # Remember to replace all NaNs with 0.0
+    NPZ = np.load(npzfile)
+
+    for hfield in default_vars:
+        if hfield not in NPZ:
+            continue
+
+        tmp_img = NPZ[hfield]
+
+        # Keep only 2D image-like arrays
+        if tmp_img.ndim != 2:
+            continue
+
         tmp_img = np.nan_to_num(tmp_img, nan=0.0)
         input_img_list.append(tmp_img)
+        present_vars.append(hfield)
 
-    # Concatenate images channel first.
-    return torch.tensor(np.stack(input_img_list, axis=0)).to(torch.float32)
+    NPZ.close()
+
+    return torch.tensor(np.stack(input_img_list, axis=0)).to(torch.float32), present_vars
 
 
 MAX_FLYER_LAYERS = 6
@@ -309,10 +309,6 @@ if __name__ == "__main__":
         ]
     )
 
-    # Build input data
-    in_vars = torch.arange(len(default_vars))
-    out_vars = torch.arange(len(default_vars))
-
     # Loop through images
     for k, npzfile in enumerate(npz_list):
         # Get index
@@ -326,56 +322,54 @@ if __name__ == "__main__":
         Zcoord = singlePVIarray(npzfile=npzfile, FIELD="Zcoord")
 
         # Step prediction
-        temp_img = prepare_input_images(npzfile, default_vars)
+        temp_img, present_vars = prepare_input_images(npzfile, default_vars)
+        in_vars = torch.arange(len(present_vars))
+        out_vars = torch.arange(len(present_vars))
         if k == 0:
             initial_input = temp_img.clone()
         input_img = initial_input if mode == "timestep" else temp_img
 
         # Sum for true average density
         true_rho = temp_img.detach().numpy()
-        density_idx = flyer_density_indices(default_vars)
+        density_idx = flyer_density_indices(present_vars)
         true_rho = true_rho[density_idx, :, :].sum(0)
 
         # Make a prediction
         if mode == "single" or mode == "timestep":
             pred_img, pred_rho = loderunner_inference(
-                model, input_img, in_vars, out_vars, Dt, default_vars
+                model, input_img, in_vars, out_vars, Dt, present_vars
             )
         else:
             if k == 0:
-                input_img = prepare_input_images(npzfile, default_vars)
+                input_img, present_vars = prepare_input_images(npzfile, default_vars)
+                in_vars = torch.arange(len(present_vars))
+                out_vars = torch.arange(len(present_vars))
 
                 # Sum for true average density
                 true_rho = input_img.detach().numpy()
-                density_idx = flyer_density_indices(default_vars)
+                density_idx = flyer_density_indices(present_vars)
                 true_rho = true_rho[density_idx, :, :].sum(0)
 
                 # Make a prediction
                 pred_img, pred_rho = loderunner_inference(
-                    model, input_img, in_vars, out_vars, Dt, default_vars
+                    model, input_img, in_vars, out_vars, Dt, present_vars
                 )
                 pred_img = torch.squeeze(pred_img, 0)  # removing the batch dimension.
 
             else:
                 # Get ground-truth average density
-                true_img_list = []
-                for hfield in default_vars:
-                    tmp_img = singlePVIarray(npzfile=npzfile, FIELD=hfield)
-
-                    # Remember to replace all NaNs with 0.0
-                    tmp_img = np.nan_to_num(tmp_img, nan=0.0)
-                    true_img_list.append(tmp_img)
-
-                # Concatenate images channel and sum
-                true_img = np.stack(true_img_list, axis=0)
+                true_img, present_vars = prepare_input_images(npzfile, default_vars)
+                in_vars = torch.arange(len(present_vars))
+                out_vars = torch.arange(len(present_vars))
 
                 # Sum for true average density
-                density_idx = flyer_density_indices(default_vars)
+                true_img = true_img.detach().numpy()
+                density_idx = flyer_density_indices(present_vars)
                 true_rho = true_img[density_idx, :, :].sum(0)
 
                 # Evaluate LodeRunner from last prediction
                 pred_img, pred_rho = loderunner_inference(
-                    model, pred_img, in_vars, out_vars, Dt, default_vars
+                    model, pred_img, in_vars, out_vars, Dt, present_vars
                 )
                 pred_img = torch.squeeze(pred_img, 0)  # removing the batch dimension.
 
