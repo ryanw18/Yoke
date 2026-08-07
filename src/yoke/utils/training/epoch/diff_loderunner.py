@@ -312,7 +312,7 @@ if __name__ == "__main__":
     import argparse
     import sys
     from pathlib import Path
-    from torch.utils.data import DataLoader
+    from torch.utils.data import DataLoader, Subset
 
     # Add parent directory to path for imports
     sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent.parent))
@@ -359,6 +359,12 @@ if __name__ == "__main__":
         default=2,
         help="Batch size for training/validation (default: 2)",
     )
+    parser.add_argument(
+        "--num_batches",
+        type=int,
+        default=10,
+        help="Number of batches to test per epoch (default: 10)",
+        )
     parser.add_argument(
         "--num_epochs",
         type=int,
@@ -436,9 +442,14 @@ if __name__ == "__main__":
     )
     print(f"Validation dataset created with {val_dataset.Nsamples} file prefixes")
 
+    # Printing number of batches in training and validation datasets
+    print(f"\nNumber of batches per epoch: {args.num_batches}")
+    train_subset = Subset(train_dataset, list(range(args.num_batches * args.batch_size)))
+    val_subset = Subset(val_dataset, list(range(args.num_batches * args.batch_size)))
+
     # Create dataloaders
     train_loader = DataLoader(
-        train_dataset,
+        train_subset,
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=0,  # Use 0 for testing to avoid multiprocessing issues
@@ -446,7 +457,7 @@ if __name__ == "__main__":
     )
 
     val_loader = DataLoader(
-        val_dataset,
+        val_subset,
         batch_size=args.batch_size,
         shuffle=False,
         num_workers=0,
@@ -462,13 +473,6 @@ if __name__ == "__main__":
     print(f"Image dimensions: {height}x{width}")
     print(f"Input channels: {in_channels}")
     print(f"Output channels: {out_channels}")
-
-
-    # Printing number of batches in training and validation datasets
-    num_train_batches = len(train_loader)
-    num_val_batches = len(val_loader)
-    print(f"\nNumber of training batches: {num_train_batches}")
-    print(f"Number of validation batches: {num_val_batches}")
 
     # Variable indices (all 8 variables: 0-7)
     in_vars = torch.tensor(list(range(in_channels)))
