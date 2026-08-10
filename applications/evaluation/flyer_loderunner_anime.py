@@ -20,6 +20,7 @@ import torch
 
 from yoke.models.vit.swin.bomberman import LodeRunner
 from yoke.utils.checkpointing import load_model_and_optimizer
+from yoke.datasets.load_npz_dataset import LabeledData
 
 # Imports for plotting
 # To view possible matplotlib backends use
@@ -109,6 +110,14 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--csv_filepath",
+    action="store",
+    type=str,
+    default="/usr/projects/artimis/mpmm/ryanw/design_flyer260625_id00001-00099.csv",
+    help="Design CSV used to derive flyerplate channel mapping.",
+)
+
+parser.add_argument(
     "--verbose", "-V", action="store_true", help="Flag to turn on debugging output."
 )
 
@@ -158,6 +167,12 @@ def singlePVIarray(
     NPZ.close()
 
     return arrays_dict[FIELD]
+
+
+def scalarPVIarray(npzfile: str, field: str) -> float:
+    """Return a scalar NPZ entry as a plain float."""
+    value = singlePVIarray(npzfile=npzfile, FIELD=field)
+    return float(np.asarray(value).reshape(-1)[0])
 
 
 def loderunner_inference(
@@ -217,6 +232,49 @@ def prepare_input_images(npzfile: str, default_vars: list[str]) -> tuple[torch.T
     return torch.tensor(np.stack(input_img_list, axis=0)).to(torch.float32), present_vars
 
 
+def prepare_flyerplate_eval_sample(
+    npzfile: str,
+    csv_filepath: str,
+    thermodynamic_variables: str = "density",
+    kinematic_variables: str = "velocity",
+) -> tuple[torch.Tensor, list[str], torch.Tensor]:
+    """Prepare flyerplate inference inputs consistent with training-time assembly."""
+    ld = LabeledData(
+        npzfile,
+        csv_filepath,
+        thermodynamic_variables=thermodynamic_variables,
+        kinematic_variables=kinematic_variables,
+    )
+
+    active_npz_field_names = ld.get_active_npz_field_names()
+    channel_map = ld.get_channel_map()
+
+    input_img_list = []
+    present_fields = []
+    filtered_channel_map = []
+
+    with np.load(npzfile) as npz:
+        available = set(npz.files)
+        for hfield, cm in zip(active_npz_field_names, channel_map):
+            if hfield not in available:
+                continue
+
+            tmp_img = np.nan_to_num(npz[hfield], nan=0.0)
+            if tmp_img.ndim != 2:
+                continue
+
+            input_img_list.append(tmp_img)
+            present_fields.append(hfield)
+            filtered_channel_map.append(cm)
+
+    if not input_img_list:
+        raise RuntimeError(f"No active 2D flyerplate fields found in {npzfile}")
+
+    input_img = torch.tensor(np.stack(input_img_list, axis=0)).to(torch.float32)
+    cm_tensor = torch.tensor(filtered_channel_map, dtype=torch.long)
+    return input_img, present_fields, cm_tensor
+
+
 MAX_FLYER_LAYERS = 6
 
 def flyerplate_layer_fields(prefixes: list[str]) -> list[str]:
@@ -236,6 +294,17 @@ def flyer_density_indices(default_vars: list[str]) -> list[int]:
     return density_idx
 
 
+def density_sum(img: torch.Tensor | np.ndarray, present_vars: list[str]) -> np.ndarray:
+    """Return summed flyer-layer density image from active channels."""
+    if isinstance(img, torch.Tensor):
+        arr = img.detach().cpu().numpy()
+    else:
+        arr = np.asarray(img)
+
+    density_idx = flyer_density_indices(present_vars)
+    return arr[density_idx, :, :].sum(0)
+
+
 if __name__ == "__main__":
     # Parse commandline arguments
     args_ns = parser.parse_args()
@@ -246,6 +315,7 @@ if __name__ == "__main__":
     outdir = args_ns.outdir
     runID = args_ns.runID
     embed_dim = args_ns.embed_dim
+    csv_filepath = args_ns.csv_filepath
     VERBOSE = args_ns.verbose
     mode = args_ns.mode
 
@@ -309,69 +379,85 @@ if __name__ == "__main__":
         ]
     )
 
-    # Loop through images
-    for k, npzfile in enumerate(npz_list):
-        # Get index
-        Dt = DT_CONST if mode != "timestep" else torch.tensor([k * TIMESTEP_DELTA])
-        pviIDX = npzfile.split("idx")[1]
+    if len(npz_list) < 2:
+        raise RuntimeError("Need at least two NPZ frames for flyerplate comparison.")
+
+    initial_file = npz_list[0]
+    initial_img, initial_present_vars, initial_channel_map = prepare_flyerplate_eval_sample(
+        initial_file,
+        csv_filepath,
+        thermodynamic_variables="density",
+        kinematic_variables="velocity",
+    )
+    initial_time = scalarPVIarray(initial_file, "sim_time")
+
+    pred_img_chained: torch.Tensor | None = None
+
+    # Loop over target frames. Frame 0 is only used as context.
+    for k, target_file in enumerate(npz_list[1:], start=1):
+        pviIDX = target_file.split("idx")[1]
         pviIDX = int(pviIDX.split(".")[0])
 
-        # Get the coordinates and time
-        simtime = singlePVIarray(npzfile=npzfile, FIELD="sim_time")
-        Rcoord = singlePVIarray(npzfile=npzfile, FIELD="Rcoord")
-        Zcoord = singlePVIarray(npzfile=npzfile, FIELD="Zcoord")
+        simtime = scalarPVIarray(target_file, "sim_time")
+        Rcoord = singlePVIarray(npzfile=target_file, FIELD="Rcoord")
+        Zcoord = singlePVIarray(npzfile=target_file, FIELD="Zcoord")
 
-        # Step prediction
-        temp_img, present_vars = prepare_input_images(npzfile, default_vars)
-        in_vars = torch.arange(len(present_vars))
-        out_vars = torch.arange(len(present_vars))
-        if k == 0:
-            initial_input = temp_img.clone()
-        input_img = initial_input if mode == "timestep" else temp_img
+        true_img, present_vars, channel_map = prepare_flyerplate_eval_sample(
+            target_file,
+            csv_filepath,
+            thermodynamic_variables="density",
+            kinematic_variables="velocity",
+        )
+        in_vars = channel_map
+        out_vars = channel_map
+        true_rho = density_sum(true_img, present_vars)
 
-        # Sum for true average density
-        true_rho = temp_img.detach().numpy()
-        density_idx = flyer_density_indices(present_vars)
-        true_rho = true_rho[density_idx, :, :].sum(0)
-
-        # Make a prediction
-        if mode == "single" or mode == "timestep":
-            pred_img, pred_rho = loderunner_inference(
-                model, input_img, in_vars, out_vars, Dt, present_vars
+        if mode == "single":
+            input_file = npz_list[k - 1]
+            input_img, input_present_vars, input_channel_map = prepare_flyerplate_eval_sample(
+                input_file,
+                csv_filepath,
+                thermodynamic_variables="density",
+                kinematic_variables="velocity",
             )
-        else:
-            if k == 0:
-                input_img, present_vars = prepare_input_images(npzfile, default_vars)
-                in_vars = torch.arange(len(present_vars))
-                out_vars = torch.arange(len(present_vars))
+            input_time = scalarPVIarray(input_file, "sim_time")
+            Dt = torch.tensor([simtime - input_time], dtype=torch.float32)
+            pred_img, pred_rho = loderunner_inference(
+                model,
+                input_img,
+                input_channel_map,
+                input_channel_map,
+                Dt,
+                input_present_vars,
+            )
 
-                # Sum for true average density
-                true_rho = input_img.detach().numpy()
-                density_idx = flyer_density_indices(present_vars)
-                true_rho = true_rho[density_idx, :, :].sum(0)
+        elif mode == "timestep":
+            Dt = torch.tensor([simtime - initial_time], dtype=torch.float32)
+            pred_img, pred_rho = loderunner_inference(
+                model,
+                initial_img,
+                initial_channel_map,
+                initial_channel_map,
+                Dt,
+                initial_present_vars,
+            )
 
-                # Make a prediction
-                pred_img, pred_rho = loderunner_inference(
-                    model, input_img, in_vars, out_vars, Dt, present_vars
-                )
-                pred_img = torch.squeeze(pred_img, 0)  # removing the batch dimension.
-
+        else:  # chained
+            Dt = torch.tensor([TIMESTEP_DELTA], dtype=torch.float32)
+            if pred_img_chained is None:
+                chained_input = initial_img
             else:
-                # Get ground-truth average density
-                true_img, present_vars = prepare_input_images(npzfile, default_vars)
-                in_vars = torch.arange(len(present_vars))
-                out_vars = torch.arange(len(present_vars))
+                chained_input = pred_img_chained
 
-                # Sum for true average density
-                true_img = true_img.detach().numpy()
-                density_idx = flyer_density_indices(present_vars)
-                true_rho = true_img[density_idx, :, :].sum(0)
-
-                # Evaluate LodeRunner from last prediction
-                pred_img, pred_rho = loderunner_inference(
-                    model, pred_img, in_vars, out_vars, Dt, present_vars
-                )
-                pred_img = torch.squeeze(pred_img, 0)  # removing the batch dimension.
+            pred_img, pred_rho = loderunner_inference(
+                model,
+                chained_input,
+                initial_channel_map,
+                initial_channel_map,
+                Dt,
+                initial_present_vars,
+            )
+            pred_img_chained = torch.squeeze(pred_img, 0)
 
         # Plot Truth/Prediction/Discrepancy panel.
         fig1, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 6))
