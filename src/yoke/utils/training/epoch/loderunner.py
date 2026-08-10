@@ -29,6 +29,11 @@ DATASTEP_FN = {
         "eval_ddp": "eval_DDP_loderunner_datastep_cylex",
         "eval": "eval_loderunner_datastep_cylex"
     },
+    "flyerplate": {
+        "train_ddp": "train_DDP_loderunner_datastep_cylex",
+        "eval_ddp": "eval_DDP_loderunner_datastep_cylex",
+        "eval": "eval_loderunner_datastep_cylex"
+    },
 }
 
 def train_simple_loderunner_epoch(

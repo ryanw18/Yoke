@@ -332,7 +332,7 @@ def main(args, rank, world_size, local_rank, device):
         train_DDP_loderunner_epoch(
             training_data=train_dataloader,
             validation_data=val_dataloader,
-            dataset='cylex',
+            dataset='flyerplate',
             num_train_batches=train_batches,
             num_val_batches=val_batches,
             model=model,
