@@ -150,12 +150,18 @@ def test_training_step(
     """Test Lightning training step."""
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    # Create test batch
+    # Create test batch (simulating dataset output)
     batch_size = 2
     x = torch.randn(batch_size, 3, 1120, 800).to(device)
     y = torch.randn(batch_size, 3, 1120, 800).to(device)
     lead_times = torch.rand(batch_size).to(device)
-    batch = (x, y, lead_times)
+
+    # Simulate what the dataset does: sample tau and apply forward diffusion
+    tau = torch.rand(batch_size).to(device)
+    y_tau, noise = lightning_diffusion_model.noise_schedule.forward_diffusion(y, tau)
+
+    # Create batch as dataset would return it
+    batch = (x, y_tau, noise, lead_times, tau)
 
     # Execute training step
     loss = lightning_diffusion_model.training_step(batch, batch_idx=0)
@@ -173,12 +179,18 @@ def test_validation_step(
     """Test Lightning validation step."""
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    # Create test batch
+    # Create test batch (simulating dataset output)
     batch_size = 2
     x = torch.randn(batch_size, 3, 1120, 800).to(device)
     y = torch.randn(batch_size, 3, 1120, 800).to(device)
     lead_times = torch.rand(batch_size).to(device)
-    batch = (x, y, lead_times)
+
+    # Simulate what the dataset does: sample tau and apply forward diffusion
+    tau = torch.rand(batch_size).to(device)
+    y_tau, noise = lightning_diffusion_model.noise_schedule.forward_diffusion(y, tau)
+
+    # Create batch as dataset would return it
+    batch = (x, y_tau, noise, lead_times, tau)
 
     # Execute validation step (returns None)
     result = lightning_diffusion_model.validation_step(batch, batch_idx=0)
