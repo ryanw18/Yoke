@@ -113,7 +113,7 @@ parser.add_argument(
     "--csv_filepath",
     action="store",
     type=str,
-    default="/usr/projects/artimis/mpmm/ryanw/design_flyer260625_id00001-00099.csv",
+    default="/usr/projects/artimis/mpmm/ryanw/design_flyer260625_id00001-01199.csv",
     help="Design CSV used to derive flyerplate channel mapping.",
 )
 
