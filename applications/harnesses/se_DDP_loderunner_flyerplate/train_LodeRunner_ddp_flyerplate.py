@@ -8,7 +8,7 @@ import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from yoke.models.vit.swin.bomberman import LodeRunner
-from flyer_temporal_dataset import FlyerTemporalDataSet as TemporalDataSet
+from yoke.datasets.load_npz_dataset import TemporalDataSet
 
 from yoke.utils.training.epoch.loderunner import train_DDP_loderunner_epoch
 from yoke.utils.restart import continuation_setup
