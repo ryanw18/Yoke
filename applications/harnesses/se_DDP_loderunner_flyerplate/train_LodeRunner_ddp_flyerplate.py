@@ -279,6 +279,7 @@ def main(args, rank, world_size, local_rank, device):
         max_timeIDX_offset=2,
         max_file_checks=10,
         half_image=True,
+        normalization_file=args.NORMALIZATION_FILE,
     )
     val_dataset = TemporalDataSet(
         args.NPZ_DIR,
@@ -287,6 +288,7 @@ def main(args, rank, world_size, local_rank, device):
         max_timeIDX_offset=2,
         max_file_checks=10,
         half_image=True,
+        normalization_file=args.NORMALIZATION_FILE,
     )
 
     # NOTE: For DDP the batch_size is the per-GPU batch_size!!!

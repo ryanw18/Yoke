@@ -632,6 +632,56 @@ def process_channel_data(
     return (channel_map_list, img_list_combined_new, new_active_names[0])
 
 
+def normalize_channel_stack(
+    img_stack: np.ndarray,
+    field_names: list[str],
+    mean_map: dict[str, float],
+    std_map: dict[str, float],
+    eps: float,
+) -> np.ndarray:
+    """Normalize a channel-first image stack using per-field statistics.
+
+    Args:
+        img_stack: Array of shape (num_channels, H, W).
+        field_names: Canonical hydro field names for each channel.
+        mean_map: Mapping from field name to mean.
+        std_map: Mapping from field name to std.
+        eps: Minimum denominator to avoid divide-by-zero.
+
+    Returns:
+        Normalized array with the same shape as `img_stack`.
+
+    Raises:
+        ValueError: If `img_stack` is not channel-first or lengths mismatch.
+        KeyError: If a field is missing from normalization stats.
+    """
+    if img_stack.ndim != 3:
+        raise ValueError(
+            f"Expected img_stack with shape (C, H, W), got {img_stack.shape}"
+        )
+
+    if img_stack.shape[0] != len(field_names):
+        raise ValueError(
+            "Mismatch between number of channels and field names: "
+            f"{img_stack.shape[0]} vs {len(field_names)}"
+        )
+
+    norm_stack = img_stack.astype(np.float32, copy=True)
+
+    for channel_idx, field_name in enumerate(field_names):
+        if field_name not in mean_map or field_name not in std_map:
+            raise KeyError(
+                f"Missing normalization stats for field {field_name!r}"
+            )
+
+        mean_val = mean_map[field_name]
+        std_val = max(std_map[field_name], eps)
+
+        norm_stack[channel_idx] = (norm_stack[channel_idx] - mean_val) / std_val
+
+    return norm_stack
+
+
 _TemporalSample = tuple[
     torch.Tensor,
     torch.Tensor,
@@ -658,6 +708,8 @@ class TemporalDataSet(Dataset[_TemporalSample]):
         half_image: bool = True,
         thermodynamic_variables: str = "density",
         kinematic_variables: str = "velocity",
+        normalization_file: str | None = None,
+        normalization_epsilon: float = 1e-6,
     ) -> None:
         """Initialize TemporalDataSet.
 
@@ -693,6 +745,46 @@ class TemporalDataSet(Dataset[_TemporalSample]):
         self.half_image = half_image
         self.thermodynamic_variables = thermodynamic_variables
         self.kinematic_variables = kinematic_variables
+
+        self.normalization_file = normalization_file
+        self.normalization_epsilon = normalization_epsilon
+        self.norm_mean: dict[str, float] = {}
+        self.norm_std: dict[str, float] = {}
+
+        if self.normalization_file is not None:
+            norm_path = Path(self.normalization_file)
+            if not norm_path.is_file():
+                raise FileNotFoundError(
+                    f"Normalization file not found: {self.normalization_file}"
+                )
+
+            with np.load(str(norm_path), allow_pickle=False) as norm_npz:
+                required_keys = {"field_names", "mean", "std"}
+                missing_keys = required_keys.difference(norm_npz.files)
+                if missing_keys:
+                    raise KeyError(
+                        "Normalization file is missing required keys: "
+                        f"{sorted(missing_keys)}"
+                    )
+
+                field_names = [str(name) for name in norm_npz["field_names"].tolist()]
+                mean_arr = np.asarray(norm_npz["mean"], dtype=np.float64)
+                std_arr = np.asarray(norm_npz["std"], dtype=np.float64)
+
+                if len(field_names) != len(mean_arr) or len(field_names) != len(std_arr):
+                    raise ValueError(
+                        "Normalization file has inconsistent lengths for "
+                        "`field_names`, `mean`, and `std`."
+                    )
+
+                if len(set(field_names)) != len(field_names):
+                    raise ValueError(
+                        "Normalization file contains duplicate entries in `field_names`."
+                    )
+
+                for field_name, mean_val, std_val in zip(field_names, mean_arr, std_arr):
+                    self.norm_mean[field_name] = float(mean_val)
+                    self.norm_std[field_name] = float(std_val)
 
         with open(file_prefix_list, encoding="utf-8") as f:
             self.file_prefix_list = [line.rstrip() for line in f]
@@ -828,12 +920,31 @@ class TemporalDataSet(Dataset[_TemporalSample]):
                     self.channel_map = channel_map_u
                     self.active_hydro_field_names = names_u
 
+                    start_img_np = np.stack(img_list_combined[0], axis=0)
+                    end_img_np = np.stack(img_list_combined[1], axis=0)
+
+                    if self.normalization_file is not None:
+                        start_img_np = normalize_channel_stack(
+                            start_img_np,
+                            self.active_hydro_field_names,
+                            self.norm_mean,
+                            self.norm_std,
+                            self.normalization_epsilon,
+                        )
+                        end_img_np = normalize_channel_stack(
+                            end_img_np,
+                            self.active_hydro_field_names,
+                            self.norm_mean,
+                            self.norm_std,
+                            self.normalization_epsilon,
+                        )
+
                     start_img = torch.as_tensor(
-                        np.stack(img_list_combined[0], axis=0),
+                        start_img_np,
                         dtype=torch.float32,
                     ).contiguous()
                     end_img = torch.as_tensor(
-                        np.stack(img_list_combined[1], axis=0),
+                        end_img_np,
                         dtype=torch.float32,
                     ).contiguous()
 

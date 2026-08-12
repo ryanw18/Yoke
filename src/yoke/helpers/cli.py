@@ -127,6 +127,13 @@ def add_filepath_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParse
         help="Filepath to CX csv file.",
     )
     parser.add_argument(
+        "--NORMALIZATION_FILE",
+        action="store",
+        type=str,
+        default=None,
+        help="Optional NPZ file containing per-field normalization statistics.",
+    )
+    parser.add_argument(
         "--NC_NPZ_DIR",
         action="store",
         type=str,
