@@ -279,8 +279,6 @@ def main(args, rank, world_size, local_rank, device):
         max_timeIDX_offset=2,
         max_file_checks=10,
         half_image=True,
-        thermodynamic_variables="density and pressure",
-        kinematic_variables="velocity",
     )
     val_dataset = TemporalDataSet(
         args.NPZ_DIR,
@@ -289,8 +287,6 @@ def main(args, rank, world_size, local_rank, device):
         max_timeIDX_offset=2,
         max_file_checks=10,
         half_image=True,
-        thermodynamic_variables="density and pressure",
-        kinematic_variables="velocity",
     )
 
     # NOTE: For DDP the batch_size is the per-GPU batch_size!!!
