@@ -13,13 +13,10 @@ import torch.nn as nn
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from yoke.models.vit.swin.diffusion_bomberman import (
-    DiffusionLodeRunner,
-    Lightning_DiffusionLodeRunner,
-)
+from yoke.models.vit.swin.diffusion_bomberman import DiffusionLodeRunner
 from yoke.datasets.diffusion_dataset import DiffusionLSC_temporal_DataSet
 from yoke.utils.diffusion.noise_schedulers import VPCosineNoiseSchedule
-from yoke.utils.training.epoch.diff_loderunner import train_DDP_diffusion_loderunner_epoch, eval_DDP_diffusion_loderunner_epoch
+from yoke.utils.training.epoch.diff_loderunner import train_DDP_diffusion_loderunner_epoch
 from yoke.utils.restart import continuation_setup
 from yoke.utils.dataload import make_distributed_dataloader
 from yoke.utils.checkpointing import load_model_and_optimizer
@@ -34,7 +31,7 @@ from yoke.helpers import cli
 #############################################
 descr_str = (
     "Uses DDP to train DiffusionLodeRunner architecture on temporal prediction "
-    "of the lsc240420 per-material density fields using score-based diffusion."
+    "of the lsc240420 per-material density fields using score-clearbased diffusion."
 )
 parser = argparse.ArgumentParser(
     prog="DDP DiffusionLodeRunner Training",
@@ -102,35 +99,34 @@ def main(args, rank, world_size, local_rank, device):
     CONTINUATION = args.continuation
     checkpoint = args.checkpoint
 
-    # Diffusion parameters
-    num_diffusion_steps = args.num_diffusion_steps
-    ddim_eta = args.ddim_eta
-
     #############################################
     # Model Arguments
     #############################################
-    available_models = {"DiffusionLodeRunner": DiffusionLodeRunner}
+    # Dictionary of available models.
+    available_models = {
+        "DiffusionLodeRunner": DiffusionLodeRunner
+    }
 
     # Define channels
     channel_list = [
         "density_case",
-        "energy_case",
-        "pressure_case",
+        #"energy_case",
+        #"pressure_case",
         "density_cushion",
-        "energy_cushion",
-        "pressure_cushion",
+        #"energy_cushion",
+        #"pressure_cushion",
         "density_maincharge",
-        "energy_maincharge",
-        "pressure_maincharge",
+        #"energy_maincharge",
+        #"pressure_maincharge",
         "density_outside_air",
-        "energy_outside_air",
-        "pressure_outside_air",
+        #"energy_outside_air",
+        #"pressure_outside_air",
         "density_striker",
-        "energy_striker",
-        "pressure_striker",
+        #"energy_striker",
+        #"pressure_striker",
         "density_throw",
-        "energy_throw",
-        "pressure_throw",
+        #"energy_throw",
+        #"pressure_throw",
         "Uvelocity",
         "Wvelocity",
     ]
@@ -139,7 +135,7 @@ def main(args, rank, world_size, local_rank, device):
     model_args = {
         "default_vars": channel_list,
         "image_size": (1120, 400),
-        "patch_size": (5, 5),
+        "patch_size": (10, 10),
         "embed_dim": embed_dim,
         "emb_factor": 2,
         "num_heads": 8,
@@ -287,7 +283,7 @@ def main(args, rank, world_size, local_rank, device):
             startTime = time.time()
 
         # Train and Validate
-        train_diffusion_epoch(
+        train_DDP_diffusion_loderunner_epoch(
             training_data=train_dataloader,
             validation_data=val_dataloader,
             num_train_batches=train_batches,
