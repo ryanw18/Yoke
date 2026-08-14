@@ -383,7 +383,7 @@ if __name__ == "__main__":
     print(f"Output channels: {out_channels}")
 
     # Convert to indicies for training
-    in_vars_ch = torch.tensor(list(range(in_channels))) 
+    in_vars_ch = torch.tensor(list(range(in_channels)))
     out_vars_ch = torch.tensor(list(range(out_channels)))
 
     print("\nCreating DiffusionLodeRunner model...")
