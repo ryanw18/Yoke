@@ -23,9 +23,9 @@ authors = [
 # is used through `conda` environments we'll handle the PyTorch
 # dependencies separately.
 dependencies = [
-#    "torch",
-#    "torchvision",
-#    "torchaudio",
+    "torch",
+    "torchvision",
+    "torchaudio",
     "scikit-image",
     "matplotlib>=3.10.7",
     "pyparsing<3.3",
