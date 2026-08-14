@@ -119,6 +119,7 @@ def train_simple_diffusion_loderunner_epoch(
 
                     np.savetxt(val_rcrd_file, batch_records, fmt="%d, %d, %.8f")
 
+
 def train_DDP_diffusion_loderunner_epoch(
     training_data: torch.utils.data.DataLoader,
     validation_data: torch.utils.data.DataLoader,
@@ -219,15 +220,17 @@ def train_DDP_diffusion_loderunner_epoch(
                     if valbatch_ID >= num_val_batches:
                         break
 
-                    noise_gt, noise_pred, val_losses = eval_DDP_diffusion_loderunner_datastep(
-                        valdata,
-                        model,
-                        loss_fn,
-                        device,
-                        rank,
-                        world_size,
-                        in_vars,
-                        out_vars,
+                    noise_gt, noise_pred, val_losses = (
+                        eval_DDP_diffusion_loderunner_datastep(
+                            valdata,
+                            model,
+                            loss_fn,
+                            device,
+                            rank,
+                            world_size,
+                            in_vars,
+                            out_vars,
+                        )
                     )
 
                     # Save validation record (rank 0 only)
@@ -364,7 +367,7 @@ if __name__ == "__main__":
         type=int,
         default=10,
         help="Number of batches to test per epoch (default: 10)",
-        )
+    )
     parser.add_argument(
         "--num_epochs",
         type=int,
@@ -405,16 +408,18 @@ if __name__ == "__main__":
     print(f"Output directory: {output_dir}")
 
     # Define variables for LSC dataset
-    in_vars_names = np.array([
-        "density_case",
-        "density_cushion",
-        "density_maincharge",
-        "density_outside_air",
-        "density_striker",
-        "density_throw",
-        "Uvelocity",
-        "Wvelocity",
-    ])
+    in_vars_names = np.array(
+        [
+            "density_case",
+            "density_cushion",
+            "density_maincharge",
+            "density_outside_air",
+            "density_striker",
+            "density_throw",
+            "Uvelocity",
+            "Wvelocity",
+        ]
+    )
     out_vars_names = in_vars_names  # Same variables for input and output
 
     # Create datasets
