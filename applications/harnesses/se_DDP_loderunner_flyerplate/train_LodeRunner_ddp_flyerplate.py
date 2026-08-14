@@ -83,14 +83,23 @@ def cleanup_distributed():
     dist.destroy_process_group()
 
 
-MAX_FLYER_LAYERS = 6
+FLYERPLATE_MATERIALS = [
+    "Al",
+    "Be",
+    "Cu",
+    "Polymer.Sylgard",
+    "Sn",
+    "Steel.alloySS304L",
+    "Ta",
+    "U.DU",
+]
 
-def flyerplate_layer_fields(prefixes: list[str]) -> list[str]:
+
+def flyerplate_material_fields(prefixes: list[str]) -> list[str]:
     fields: list[str] = []
-    for layer_idx in range(MAX_FLYER_LAYERS):
-        layer_name = f"layer{layer_idx:03d}"
-        for prefix in prefixes:
-            fields.append(f"{prefix}_{layer_name}")
+    for prefix in prefixes:
+        for material_name in FLYERPLATE_MATERIALS:
+            fields.append(f"{prefix}_{material_name}")
     return fields
 
 
@@ -162,7 +171,7 @@ def main(args, rank, world_size, local_rank, device):
             "Wvelocity",
             "Rcoord",
             "Zcoord",
-        ] + flyerplate_layer_fields(
+        ] + flyerplate_material_fields(
             [
                 "density",
                 "energy",
@@ -279,7 +288,7 @@ def main(args, rank, world_size, local_rank, device):
         max_timeIDX_offset=2,
         max_file_checks=10,
         half_image=True,
-        normalization_file=args.NORMALIZATION_FILE,
+        normalization_file=None,
     )
     val_dataset = TemporalDataSet(
         args.NPZ_DIR,
@@ -288,7 +297,7 @@ def main(args, rank, world_size, local_rank, device):
         max_timeIDX_offset=2,
         max_file_checks=10,
         half_image=True,
-        normalization_file=args.NORMALIZATION_FILE,
+        normalization_file=None,
     )
 
     # NOTE: For DDP the batch_size is the per-GPU batch_size!!!

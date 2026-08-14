@@ -332,8 +332,8 @@ def test_labeled_data_flyerplate_configures_active_fields(tmp_path: pathlib.Path
     csv.write_text(
         "\n".join(
             [
-                "key,list,authority,custFile,expcustFile,jobcust,expname,jobkey,dimension,flyer_thickness,target_thickness,flyer_velocity,flyer_radius,target_radius,flyer_material,target_material",
-                "flyer260625_id00001,[runs],sapa,custFlyerGeom.py,,fly00001,test2d,flyer260625_id00001,2d,0.2,0.3,0.1,1,1,Cu,Cu",
+                "key,list,authority,custFile,expcustFile,jobcust,expname,jobkey,dimension,flyer_velocity,radius,flyer_material_1,flyer_thickness_1,flyer_material_2,flyer_thickness_2,flyer_material_3,flyer_thickness_3,target_material_1,target_thickness_1,target_material_2,target_thickness_2,target_material_3,target_thickness_3",
+                "flyer260625_id00001,[runs],sapa,custFlyerGeom.py,,fly00001,test2d,flyer260625_id00001,2d,0.1,1.0,Sn,0.2,,0,,0,Polymer.Sylgard,0.15,Al,0.10,Be,0.05",
             ]
         )
         + "\n",
@@ -362,17 +362,37 @@ def test_labeled_data_flyerplate_configures_active_fields(tmp_path: pathlib.Path
     assert "density_Air" in active_npz
     assert "density_layer000" in active_npz
     assert "density_layer001" in active_npz
-    assert "density_layer005" in active_npz
+    assert "density_layer002" in active_npz
+    assert "density_layer003" in active_npz
 
     assert "pressure_Air" in active_npz
     assert "pressure_layer000" in active_npz
     assert "pressure_layer001" in active_npz
+    assert "pressure_layer002" in active_npz
+    assert "pressure_layer003" in active_npz
 
     assert "energy_Air" in active_npz
     assert "energy_layer000" in active_npz
     assert "energy_layer001" in active_npz
+    assert "energy_layer002" in active_npz
+    assert "energy_layer003" in active_npz
 
-    assert active_npz == active_hydro
+    assert "density_Sn" in active_hydro
+    assert "density_Polymer.Sylgard" in active_hydro
+    assert "density_Al" in active_hydro
+    assert "density_Be" in active_hydro
+
+    assert "pressure_Sn" in active_hydro
+    assert "pressure_Polymer.Sylgard" in active_hydro
+    assert "pressure_Al" in active_hydro
+    assert "pressure_Be" in active_hydro
+
+    assert "energy_Sn" in active_hydro
+    assert "energy_Polymer.Sylgard" in active_hydro
+    assert "energy_Al" in active_hydro
+    assert "energy_Be" in active_hydro
+
+    assert active_npz != active_hydro
     assert len(channel_map) == len(active_hydro)
 
 
@@ -846,8 +866,8 @@ def test_temporal_dataset_flyerplate_filters_missing_layers(
     csv.write_text(
         "\n".join(
             [
-                "key,list,authority,custFile,expcustFile,jobcust,expname,jobkey,dimension,flyer_thickness,target_thickness,flyer_velocity,flyer_radius,target_radius,flyer_material,target_material",
-                "flyer260625_id00001,[runs],sapa,custFlyerGeom.py,,fly00001,test2d,flyer260625_id00001,2d,0.2,0.3,0.1,1,1,Cu,Cu",
+                "key,list,authority,custFile,expcustFile,jobcust,expname,jobkey,dimension,flyer_velocity,radius,flyer_material_1,flyer_thickness_1,flyer_material_2,flyer_thickness_2,flyer_material_3,flyer_thickness_3,target_material_1,target_thickness_1,target_material_2,target_thickness_2,target_material_3,target_thickness_3",
+                "flyer260625_id00001,[runs],sapa,custFlyerGeom.py,,fly00001,test2d,flyer260625_id00001,2d,0.1,1.0,Sn,0.2,,0,,0,Polymer.Sylgard,0.3,,0,,0",
             ]
         )
         + "\n",
@@ -927,14 +947,14 @@ def test_temporal_dataset_flyerplate_filters_missing_layers(
         "Uvelocity",
         "Wvelocity",
         "density_Air",
-        "density_layer000",
-        "density_layer001",
+        "density_Sn",
+        "density_Polymer.Sylgard",
         "pressure_Air",
-        "pressure_layer000",
-        "pressure_layer001",
+        "pressure_Sn",
+        "pressure_Polymer.Sylgard",
         "energy_Air",
-        "energy_layer000",
-        "energy_layer001",
+        "energy_Sn",
+        "energy_Polymer.Sylgard",
     ]
 
 def test_temporal_dataset_flyerplate_channel_map_matches_default_vars(
@@ -952,8 +972,8 @@ def test_temporal_dataset_flyerplate_channel_map_matches_default_vars(
     csv.write_text(
         "\n".join(
             [
-                "key,list,authority,custFile,expcustFile,jobcust,expname,jobkey,dimension,flyer_thickness,target_thickness,flyer_velocity,flyer_radius,target_radius,flyer_material,target_material",
-                "flyer260625_id00001,[runs],sapa,custFlyerGeom.py,,fly00001,test2d,flyer260625_id00001,2d,0.2,0.3,0.1,1,1,Cu,Cu",
+                "key,list,authority,custFile,expcustFile,jobcust,expname,jobkey,dimension,flyer_velocity,radius,flyer_material_1,flyer_thickness_1,flyer_material_2,flyer_thickness_2,flyer_material_3,flyer_thickness_3,target_material_1,target_thickness_1,target_material_2,target_thickness_2,target_material_3,target_thickness_3",
+                "flyer260625_id00001,[runs],sapa,custFlyerGeom.py,,fly00001,test2d,flyer260625_id00001,2d,0.1,1.0,Sn,0.2,,0,,0,Polymer.Sylgard,0.15,Al,0.10,Be,0.05",
             ]
         )
         + "\n",
@@ -1006,12 +1026,21 @@ def test_temporal_dataset_flyerplate_channel_map_matches_default_vars(
         vofm_layer001=img,
     )
 
-    def flyerplate_layer_fields(prefixes: list[str]) -> list[str]:
+    def flyerplate_material_fields(prefixes: list[str]) -> list[str]:
+        materials = [
+            "Al",
+            "Be",
+            "Cu",
+            "Polymer.Sylgard",
+            "Sn",
+            "Steel.alloySS304L",
+            "Ta",
+            "U.DU",
+        ]
         fields: list[str] = []
-        for layer_idx in range(6):
-            layer_name = f"layer{layer_idx:03d}"
-            for prefix_name in prefixes:
-                fields.append(f"{prefix_name}_{layer_name}")
+        for prefix_name in prefixes:
+            for material_name in materials:
+                fields.append(f"{prefix_name}_{material_name}")
         return fields
 
     default_vars = [
@@ -1028,7 +1057,7 @@ def test_temporal_dataset_flyerplate_channel_map_matches_default_vars(
         "Wvelocity",
         "Rcoord",
         "Zcoord",
-    ] + flyerplate_layer_fields(
+    ] + flyerplate_material_fields(
         [
             "density",
             "energy",
