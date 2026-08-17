@@ -490,50 +490,30 @@ if __name__ == "__main__":
                 single_present_vars,
             )
 
-            if pred_img_chained is None:
-                chained_input_check = initial_img
-            else:
-                chained_input_check = pred_img_chained
-
-            if k == 1:
-                chained_prev_time = initial_time
-            else:
-                chained_prev_time = scalarPVIarray(npz_list[k - 1], "sim_time")
-
-            chained_Dt_check = torch.tensor([simtime - chained_prev_time], dtype=torch.float32)
-
-            chained_pred_img_check, chained_pred_rho_check = loderunner_inference(
-                model,
-                chained_input_check,
-                initial_channel_map,
-                initial_channel_map,
-                chained_Dt_check,
-                initial_present_vars,
-            )
-
             print("DEBUG idx00001")
+            print("mode:", mode)
             print("single_Dt:", single_Dt)
-            print("chained_Dt:", chained_Dt_check)
+            print("current_Dt:", Dt)
             print(
-                "input max abs diff:",
-                torch.max(torch.abs(single_input_img - chained_input_check)).item(),
+                "single vs current input max abs diff:",
+                torch.max(torch.abs(single_input_img - initial_img)).item(),
             )
             print(
-                "channel map equal:",
+                "single vs current channel map equal:",
                 torch.equal(single_channel_map, initial_channel_map),
             )
             print(
-                "pred max abs diff:",
+                "single vs current pred max abs diff:",
                 torch.max(
                     torch.abs(
                         torch.squeeze(single_pred_img_check, 0)
-                        - torch.squeeze(chained_pred_img_check, 0)
+                        - torch.squeeze(pred_img, 0)
                     )
                 ).item(),
             )
             print(
-                "rho max abs diff:",
-                np.max(np.abs(single_pred_rho_check - chained_pred_rho_check)),
+                "single vs current rho max abs diff:",
+                np.max(np.abs(single_pred_rho_check - pred_rho)),
             )
 
 
