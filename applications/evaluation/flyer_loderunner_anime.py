@@ -544,5 +544,3 @@ if __name__ == "__main__":
         )
         plt.close()
 
-        if k == 1:
-            break
