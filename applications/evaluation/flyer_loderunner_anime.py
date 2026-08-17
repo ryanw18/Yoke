@@ -466,30 +466,44 @@ if __name__ == "__main__":
             pred_img_chained = torch.squeeze(pred_img, 0)
 
         # Plot Truth/Prediction/Discrepancy panel.
-        fig1, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 6))
+        fig1, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 6))
         fig1.suptitle(f"T={float(simtime):.2f}us", fontsize=18)
+
+        discrepancy = np.abs(true_rho - pred_rho)
+
+        true_rho_plot = np.rot90(true_rho, k=1)
+        pred_rho_plot = np.rot90(pred_rho, k=1)
+        discrepancy_plot = np.rot90(discrepancy, k=1)
+
+        plot_extent = [Zcoord.min(), Zcoord.max(), 0.0, Rcoord.max()]
+
         img1 = ax1.imshow(
-            true_rho,
+            true_rho_plot,
             aspect="equal",
-            extent=[0.0, Rcoord.max(), Zcoord.min(), Zcoord.max()],
+            extent=plot_extent,
             origin="lower",
             cmap="jet",
             vmin=true_rho.min(),
             vmax=true_rho.max(),
         )
-        ax1.set_ylabel("Z-axis", fontsize=16)
-        ax1.set_xlabel("R-axis", fontsize=16)
+        ax1.set_xlabel("Z-axis", fontsize=16)
+        ax1.set_ylabel("R-axis", fontsize=16)
         ax1.set_title("True", fontsize=18)
 
+        divider1 = make_axes_locatable(ax1)
+        cax1 = divider1.append_axes("right", size="10%", pad=0.1)
+        fig1.colorbar(img1, cax=cax1).set_label("Density (g/cc)", fontsize=14)
+
         img2 = ax2.imshow(
-            pred_rho,
+            pred_rho_plot,
             aspect="equal",
-            extent=[0.0, Rcoord.max(), Zcoord.min(), Zcoord.max()],
+            extent=plot_extent,
             origin="lower",
             cmap="jet",
             vmin=true_rho.min(),
             vmax=true_rho.max(),
         )
+        ax2.set_xlabel("Z-axis", fontsize=16)
         ax2.set_title("Predicted", fontsize=18)
         ax2.tick_params(axis="y", which="both", left=False, labelleft=False)
 
@@ -497,16 +511,16 @@ if __name__ == "__main__":
         cax2 = divider2.append_axes("right", size="10%", pad=0.1)
         fig1.colorbar(img2, cax=cax2).set_label("Density (g/cc)", fontsize=14)
 
-        discrepancy = np.abs(true_rho - pred_rho)
         img3 = ax3.imshow(
-            discrepancy,
+            discrepancy_plot,
             aspect="equal",
-            extent=[0.0, Rcoord.max(), Zcoord.min(), Zcoord.max()],
+            extent=plot_extent,
             origin="lower",
             cmap="hot",
             vmin=discrepancy.min(),
             vmax=0.3 * discrepancy.max(),
         )
+        ax3.set_xlabel("Z-axis", fontsize=16)
         ax3.set_title("Discrepancy", fontsize=18)
         ax3.tick_params(axis="y", which="both", left=False, labelleft=False)
 
@@ -514,12 +528,12 @@ if __name__ == "__main__":
         cax3 = divider3.append_axes("right", size="10%", pad=0.1)
         fig1.colorbar(img3, cax=cax3).set_label("Discrepancy", fontsize=14)
 
-        rmin, rmax = 0.0, 3.0
         zmin, zmax = -1.0, 2.0
+        rmin, rmax = 0.0, 3.0
 
         for ax in (ax1, ax2, ax3):
-            ax.set_xlim(rmin, rmax)
-            ax.set_ylim(zmin, zmax)
+            ax.set_xlim(zmin, zmax)
+            ax.set_ylim(rmin, rmax)
 
         # Save images
         fig1.savefig(
