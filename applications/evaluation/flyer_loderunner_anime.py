@@ -465,6 +465,82 @@ if __name__ == "__main__":
             )
             pred_img_chained = torch.squeeze(pred_img, 0)
 
+
+
+
+
+
+        if k == 1:
+            single_input_file = npz_list[0]
+            single_input_img, single_present_vars, single_channel_map = prepare_flyerplate_eval_sample(
+                single_input_file,
+                csv_filepath,
+                thermodynamic_variables="density",
+                kinematic_variables="velocity",
+            )
+            single_input_time = scalarPVIarray(single_input_file, "sim_time")
+            single_Dt = torch.tensor([simtime - single_input_time], dtype=torch.float32)
+
+            single_pred_img_check, single_pred_rho_check = loderunner_inference(
+                model,
+                single_input_img,
+                single_channel_map,
+                single_channel_map,
+                single_Dt,
+                single_present_vars,
+            )
+
+            if pred_img_chained is None:
+                chained_input_check = initial_img
+            else:
+                chained_input_check = pred_img_chained
+
+            if k == 1:
+                chained_prev_time = initial_time
+            else:
+                chained_prev_time = scalarPVIarray(npz_list[k - 1], "sim_time")
+
+            chained_Dt_check = torch.tensor([simtime - chained_prev_time], dtype=torch.float32)
+
+            chained_pred_img_check, chained_pred_rho_check = loderunner_inference(
+                model,
+                chained_input_check,
+                initial_channel_map,
+                initial_channel_map,
+                chained_Dt_check,
+                initial_present_vars,
+            )
+
+            print("DEBUG idx00001")
+            print("single_Dt:", single_Dt)
+            print("chained_Dt:", chained_Dt_check)
+            print(
+                "input max abs diff:",
+                torch.max(torch.abs(single_input_img - chained_input_check)).item(),
+            )
+            print(
+                "channel map equal:",
+                torch.equal(single_channel_map, initial_channel_map),
+            )
+            print(
+                "pred max abs diff:",
+                torch.max(
+                    torch.abs(
+                        torch.squeeze(single_pred_img_check, 0)
+                        - torch.squeeze(chained_pred_img_check, 0)
+                    )
+                ).item(),
+            )
+            print(
+                "rho max abs diff:",
+                np.max(np.abs(single_pred_rho_check - chained_pred_rho_check)),
+            )
+
+
+
+
+
+
         # Plot Truth/Prediction/Discrepancy panel.
         fig1, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 6))
         fig1.suptitle(f"T={float(simtime):.2f}us", fontsize=18)
