@@ -471,9 +471,9 @@ if __name__ == "__main__":
 
         discrepancy = np.abs(true_rho - pred_rho)
 
-        true_rho_plot = np.rot90(true_rho, k=1)
-        pred_rho_plot = np.rot90(pred_rho, k=1)
-        discrepancy_plot = np.rot90(discrepancy, k=1)
+        true_rho_plot = np.rot90(true_rho, k=3)
+        pred_rho_plot = np.rot90(pred_rho, k=3)
+        discrepancy_plot = np.rot90(discrepancy, k=3)
 
         plot_extent = [Zcoord.max(), Zcoord.min(), 0.0, Rcoord.max()]
 
@@ -543,3 +543,6 @@ if __name__ == "__main__":
             bbox_inches="tight",
         )
         plt.close()
+
+        if k == 1:
+            break
