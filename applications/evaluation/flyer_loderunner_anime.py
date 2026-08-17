@@ -532,7 +532,7 @@ if __name__ == "__main__":
         rmin, rmax = 0.0, 3.0
 
         for ax in (ax1, ax2, ax3):
-            ax.set_xlim(zmax, zmin)
+            ax.set_xlim(zmin, zmax)
             ax.set_ylim(rmin, rmax)
 
         # Save images
