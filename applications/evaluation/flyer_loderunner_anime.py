@@ -443,7 +443,13 @@ if __name__ == "__main__":
             )
 
         else:  # chained
-            Dt = torch.tensor([TIMESTEP_DELTA], dtype=torch.float32)
+            if k == 1:
+                prev_time = initial_time
+            else:
+                prev_time = scalarPVIarray(npz_list[k - 1], "sim_time")
+
+            Dt = torch.tensor([simtime - prev_time], dtype=torch.float32)
+
             if pred_img_chained is None:
                 chained_input = initial_img
             else:
