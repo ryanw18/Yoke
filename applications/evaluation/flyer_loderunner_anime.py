@@ -465,62 +465,6 @@ if __name__ == "__main__":
             )
             pred_img_chained = torch.squeeze(pred_img, 0)
 
-
-
-
-
-
-        if k == 1:
-            single_input_file = npz_list[0]
-            single_input_img, single_present_vars, single_channel_map = prepare_flyerplate_eval_sample(
-                single_input_file,
-                csv_filepath,
-                thermodynamic_variables="density",
-                kinematic_variables="velocity",
-            )
-            single_input_time = scalarPVIarray(single_input_file, "sim_time")
-            single_Dt = torch.tensor([simtime - single_input_time], dtype=torch.float32)
-
-            single_pred_img_check, single_pred_rho_check = loderunner_inference(
-                model,
-                single_input_img,
-                single_channel_map,
-                single_channel_map,
-                single_Dt,
-                single_present_vars,
-            )
-
-            print("DEBUG idx00001")
-            print("mode:", mode)
-            print("single_Dt:", single_Dt)
-            print("current_Dt:", Dt)
-            print(
-                "single vs current input max abs diff:",
-                torch.max(torch.abs(single_input_img - initial_img)).item(),
-            )
-            print(
-                "single vs current channel map equal:",
-                torch.equal(single_channel_map, initial_channel_map),
-            )
-            print(
-                "single vs current pred max abs diff:",
-                torch.max(
-                    torch.abs(
-                        torch.squeeze(single_pred_img_check, 0)
-                        - torch.squeeze(pred_img, 0)
-                    )
-                ).item(),
-            )
-            print(
-                "single vs current rho max abs diff:",
-                np.max(np.abs(single_pred_rho_check - pred_rho)),
-            )
-
-
-
-
-
-
         # Plot Truth/Prediction/Discrepancy panel.
         fig1, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(16, 6))
         fig1.suptitle(f"T={float(simtime):.2f}us", fontsize=18)
