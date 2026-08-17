@@ -475,7 +475,7 @@ if __name__ == "__main__":
         pred_rho_plot = np.rot90(pred_rho, k=1)
         discrepancy_plot = np.rot90(discrepancy, k=1)
 
-        plot_extent = [Zcoord.min(), Zcoord.max(), 0.0, Rcoord.max()]
+        plot_extent = [Zcoord.max(), Zcoord.min(), 0.0, Rcoord.max()]
 
         img1 = ax1.imshow(
             true_rho_plot,
@@ -532,7 +532,7 @@ if __name__ == "__main__":
         rmin, rmax = 0.0, 3.0
 
         for ax in (ax1, ax2, ax3):
-            ax.set_xlim(zmin, zmax)
+            ax.set_xlim(zmax, zmin)
             ax.set_ylim(rmin, rmax)
 
         # Save images
