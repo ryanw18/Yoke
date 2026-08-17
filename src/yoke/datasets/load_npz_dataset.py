@@ -276,84 +276,6 @@ def combine_by_number_and_label(
     return (np.array(unique_numbers), np.array(combined_arrays), unique_labels)
 
 
-def _clean_material_name(value: object) -> str | None:
-    """Return a stripped material name, or None for blank/NaN entries."""
-    if value is None:
-        return None
-
-    if isinstance(value, float) and np.isnan(value):
-        return None
-
-    text = str(value).strip()
-    if text == "" or text.lower() == "nan":
-        return None
-
-    return text
-
-
-def _clean_thickness_value(value: object) -> float | None:
-    """Return thickness as float, or None for blank/zero/NaN entries."""
-    if value is None:
-        return None
-
-    if isinstance(value, float) and np.isnan(value):
-        return None
-
-    try:
-        thickness = float(value)
-    except (TypeError, ValueError):
-        return None
-
-    if thickness <= 0.0:
-        return None
-
-    return thickness
-
-
-def _ordered_flyerplate_material_stack(design_row: pd.Series) -> list[str]:
-    """Return the ordered physical material stack for one flyerplate design row.
-
-    The order matches the NPZ layer numbering:
-    - flyer layers first
-    - then target layers
-    """
-    ordered_materials: list[str] = []
-
-    for prefix in ("flyer", "target"):
-        for idx in range(1, 4):
-            material_col = f"{prefix}_material_{idx}"
-            thickness_col = f"{prefix}_thickness_{idx}"
-
-            material_name = _clean_material_name(design_row.get(material_col))
-            thickness_value = _clean_thickness_value(design_row.get(thickness_col))
-
-            if material_name is None or thickness_value is None:
-                continue
-
-            ordered_materials.append(material_name)
-
-    return ordered_materials
-
-
-def _canonicalize_flyerplate_field(
-    npz_field_name: str,
-    ordered_materials: list[str],
-) -> str:
-    """Map raw flyerplate NPZ layer fields to canonical material-aware names."""
-    layer_match = re.match(r"^(?P<prefix>[A-Za-z_]+)_layer(?P<layer_idx>\d{3})$", npz_field_name)
-    if layer_match is None:
-        return npz_field_name
-
-    field_prefix = layer_match.group("prefix")
-    layer_idx = int(layer_match.group("layer_idx"))
-
-    if layer_idx >= len(ordered_materials):
-        return npz_field_name
-
-    material_name = ordered_materials[layer_idx]
-    return f"{field_prefix}_{material_name}"
-
-
 class LabeledData:
     """Relate NPZ fields to correct hydro labels via a design CSV."""
 
@@ -456,32 +378,6 @@ class LabeledData:
     
     def configure_flyerplate(self) -> None:
         """Configure hydro field definitions for the flyerplate dataset."""
-        design_df = pd.read_csv(
-            self.csv_filepath,
-            sep=",",
-            header=0,
-            index_col=0,
-            engine="python",
-        )
-        for col in design_df.columns:
-            design_df.rename(columns={col: col.strip()}, inplace=True)
-
-        if self.key not in design_df.index:
-            raise KeyError(f"Flyerplate key {self.key!r} not found in design CSV.")
-
-        design_row = design_df.loc[self.key]
-
-        flyerplate_materials = [
-            "Al",
-            "Be",
-            "Cu",
-            "Polymer.Sylgard",
-            "Sn",
-            "Steel.alloySS304L",
-            "Ta",
-            "U.DU",
-        ]
-
         self.all_hydro_field_names = [
             "sim_time",
             "av_density",
@@ -497,27 +393,27 @@ class LabeledData:
             "Rcoord",
             "Zcoord",
         ]
-
-        for prefix in [
-            "density",
-            "energy",
-            "plst_strain",
-            "pressure",
-            "shear_modulus",
-            "sound_speed",
-            "strain_rate",
-            "Sxxm",
-            "Sxzm",
-            "Syym",
-            "Szzm",
-            "vofm",
-            "yield",
-        ]:
-            for material_name in flyerplate_materials:
-                self.all_hydro_field_names.append(f"{prefix}_{material_name}")
-
+        self.all_hydro_field_names.extend(
+            self.flyerplate_layer_fields(
+                [
+                    "density",
+                    "energy",
+                    "plst_strain",
+                    "pressure",                                                                                                                                             
+                    "shear_modulus",
+                    "sound_speed",
+                    "strain_rate",
+                    "Sxxm",
+                    "Sxzm",
+                    "Syym",
+                    "Szzm",
+                    "vofm",
+                    "yield",
+                ]
+            )
+        )
         self.channel_map = list(range(len(self.all_hydro_field_names)))
-        self.flyerplate_data_loader(design_row)
+        self.flyerplate_data_loader()
 
     def get_active_hydro_indices(self) -> list[int]:
         """Return indices of active hydro fields within the full list."""
@@ -603,13 +499,11 @@ class LabeledData:
 
         self.channel_map = self.get_active_hydro_indices()
 
-    def flyerplate_data_loader(self, design_row: pd.Series) -> None:
+    def flyerplate_data_loader(self) -> None:
         """Configure active fields and channel map for the flyerplate dataset."""
         self.channel_map = []
         self.active_npz_field_names = []
         self.active_hydro_field_names = []
-
-        ordered_materials = _ordered_flyerplate_material_stack(design_row)
 
         if self.kinematic_variables == "velocity":
             self.active_hydro_field_names = ["Uvelocity", "Wvelocity"]
@@ -631,26 +525,12 @@ class LabeledData:
                 "'position', or 'both'."
             )
 
-        density_fields_raw = ["density_Air"] + self.flyerplate_layer_fields(["density"])
-        density_fields_canonical = [
-            _canonicalize_flyerplate_field(field_name, ordered_materials)
-            for field_name in density_fields_raw
-        ]
+        density_fields = ["density_Air"] + self.flyerplate_layer_fields(["density"])
+        energy_fields = ["energy_Air"] + self.flyerplate_layer_fields(["energy"])
+        pressure_fields = ["pressure_Air"] + self.flyerplate_layer_fields(["pressure"])
 
-        energy_fields_raw = ["energy_Air"] + self.flyerplate_layer_fields(["energy"])
-        energy_fields_canonical = [
-            _canonicalize_flyerplate_field(field_name, ordered_materials)
-            for field_name in energy_fields_raw
-        ]
-
-        pressure_fields_raw = ["pressure_Air"] + self.flyerplate_layer_fields(["pressure"])
-        pressure_fields_canonical = [
-            _canonicalize_flyerplate_field(field_name, ordered_materials)
-            for field_name in pressure_fields_raw
-        ]
-
-        self.active_npz_field_names.extend(density_fields_raw)
-        self.active_hydro_field_names.extend(density_fields_canonical)
+        self.active_npz_field_names.extend(density_fields)
+        self.active_hydro_field_names.extend(density_fields)
 
         if self.thermodynamic_variables not in (
             "density",
@@ -664,12 +544,12 @@ class LabeledData:
             )
 
         if self.thermodynamic_variables in ("density and pressure", "all"):
-            self.active_npz_field_names.extend(pressure_fields_raw)
-            self.active_hydro_field_names.extend(pressure_fields_canonical)
+            self.active_npz_field_names.extend(pressure_fields)
+            self.active_hydro_field_names.extend(pressure_fields)
 
         if self.thermodynamic_variables in ("density and energy", "all"):
-            self.active_npz_field_names.extend(energy_fields_raw)
-            self.active_hydro_field_names.extend(energy_fields_canonical)
+            self.active_npz_field_names.extend(energy_fields)
+            self.active_hydro_field_names.extend(energy_fields)
 
         self.channel_map = self.get_active_hydro_indices()
     
