@@ -20,6 +20,30 @@ from yoke.lr_schedulers import CosineWithWarmupScheduler
 from yoke.helpers import cli
 
 
+class WeightedMaterialMSELoss(nn.Module):
+    """Per-pixel MSE that upweights material-rich regions.
+
+    Keeps reduction='none'-style behavior so the existing training loop still works.
+    """
+
+    def __init__(self, material_weight: float = 5.0, density_threshold: float = 1e-6):
+        super().__init__()
+        self.material_weight = material_weight
+        self.density_threshold = density_threshold
+
+    def forward(self, pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        sqerr = (pred - target) ** 2
+
+        if target.shape[1] <= 4:
+            return sqerr
+
+        density_channels = target[:, 4:, :, :]
+        material_mask = (density_channels.sum(dim=1, keepdim=True) > self.density_threshold).to(target.dtype)
+
+        weights = 1.0 + (self.material_weight - 1.0) * material_mask
+        return sqerr * weights
+
+
 #############################################
 # Inputs
 #############################################
@@ -234,7 +258,7 @@ def main(args, rank, world_size, local_rank, device):
     # Initialize Loss
     #############################################
     # Use `reduction='none'` so loss on each sample in batch can be recorded.
-    loss_fn = nn.MSELoss(reduction="none")
+    loss_fn = WeightedMaterialMSELoss(material_weight=5.0, density_threshold=1e-6)
 
     #############################################
     # Move Model to DistributedDataParallel
