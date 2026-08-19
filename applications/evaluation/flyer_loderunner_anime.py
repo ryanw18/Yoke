@@ -118,6 +118,14 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--num_pngs",
+    action="store",
+    type=int,
+    default=None,
+    help="Maximum number of PNG frames to generate. Default is all frames.",
+)
+
+parser.add_argument(
     "--verbose", "-V", action="store_true", help="Flag to turn on debugging output."
 )
 
@@ -316,6 +324,7 @@ if __name__ == "__main__":
     runID = args_ns.runID
     embed_dim = args_ns.embed_dim
     csv_filepath = args_ns.csv_filepath
+    num_pngs = args_ns.num_pngs
     VERBOSE = args_ns.verbose
     mode = args_ns.mode
 
@@ -544,3 +553,5 @@ if __name__ == "__main__":
         )
         plt.close()
 
+    if num_pngs is not None and k >= num_pngs:
+        break   
