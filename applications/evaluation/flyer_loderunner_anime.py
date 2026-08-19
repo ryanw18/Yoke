@@ -553,5 +553,5 @@ if __name__ == "__main__":
         )
         plt.close()
 
-    if num_pngs is not None and k >= num_pngs:
-        break   
+        if num_pngs is not None and k >= num_pngs:
+            break   
