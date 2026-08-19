@@ -937,6 +937,157 @@ def test_temporal_dataset_flyerplate_filters_missing_layers(
         "energy_layer001",
     ]
 
+def test_temporal_dataset_getitem_supports_nested_prefix_dirs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path,
+) -> None:
+    """TemporalDataSet supports NPZ files stored under per-prefix subdirectories."""
+    npz_dir = tmp_path / "npz"
+    npz_dir.mkdir()
+    prefix = "cx241203_id00001"
+    run_dir = npz_dir / prefix
+    run_dir.mkdir()
+
+    prefix_file = tmp_path / "prefixes.txt"
+    _write_prefix_file(prefix_file, [prefix])
+    csv = tmp_path / "design.csv"
+    _write_design_csv(csv, [(prefix, "Air", "Al")])
+
+    start = run_dir / f"{prefix}_pvi_idx00000.npz"
+    end = run_dir / f"{prefix}_pvi_idx00001.npz"
+    _write_npz(start, dummy=np.zeros((1,), dtype=float))
+    _write_npz(end, dummy=np.zeros((1,), dtype=float))
+
+    class FakeLabeledData:
+        """Minimal stub that matches the tiny NPZ fields used in this test."""
+
+        def __init__(
+            self,
+            npz_filepath: str,
+            csv_filepath: str,
+            kinematic_variables: str = "velocity",
+            thermodynamic_variables: str = "density",
+        ) -> None:
+            _ = (
+                npz_filepath,
+                csv_filepath,
+                kinematic_variables,
+                thermodynamic_variables,
+            )
+
+        def get_active_npz_field_names(self) -> list[str]:
+            return ["dummy"]
+
+        def get_active_hydro_field_names(self) -> list[str]:
+            return ["dummy"]
+
+        def get_channel_map(self) -> list[int]:
+            return [0]
+
+        def get_all_hydro_field_names(self) -> list[str]:
+            return ["dummy"]
+
+    monkeypatch.setattr(m, "LabeledData", FakeLabeledData)
+    monkeypatch.setattr(m, "import_img_from_npz", lambda npz, fld: np.ones((2, 2)))
+    monkeypatch.setattr(
+        m,
+        "process_channel_data",
+        lambda cm, imgs, names: (cm, imgs, names),
+    )
+
+    ds = m.TemporalDataSet(
+        npz_dir=str(npz_dir) + "/",
+        csv_filepath=str(csv),
+        file_prefix_list=str(prefix_file),
+        max_timeIDX_offset=1,
+        max_file_checks=1,
+        half_image=True,
+        kinematic_variables="velocity",
+        thermodynamic_variables="density",
+    )
+    ds.rng = _FakeRNG([1, 0])  # seq_len=1, start_idx=0 -> end_idx=1
+
+    start_img, cm1, end_img, cm2, dt = ds[0]
+    assert start_img.shape == (1, 2, 2)
+    assert end_img.shape == (1, 2, 2)
+    assert cm1.tolist() == [0]
+    assert cm2.tolist() == [0]
+    assert dt.item() == pytest.approx(0.25)
+
+def test_sequential_dataset_getitem_supports_nested_prefix_dirs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path,
+) -> None:
+    """SequentialDataSet supports NPZ files stored under per-prefix subdirectories."""
+    npz_dir = tmp_path / "npz"
+    npz_dir.mkdir()
+    prefix = "cx241203_id00001"
+    run_dir = npz_dir / prefix
+    run_dir.mkdir()
+
+    prefix_file = tmp_path / "prefixes.txt"
+    _write_prefix_file(prefix_file, [prefix])
+    csv = tmp_path / "design.csv"
+    _write_design_csv(csv, [(prefix, "Air", "Al")])
+
+    f0 = run_dir / f"{prefix}_pvi_idx00000.npz"
+    f1 = run_dir / f"{prefix}_pvi_idx00001.npz"
+    _write_npz(f0, dummy=np.zeros((1,), dtype=float))
+    _write_npz(f1, dummy=np.zeros((1,), dtype=float))
+
+    class FakeLabeledData:
+        """Minimal stub that matches the tiny NPZ fields used in this test."""
+
+        def __init__(
+            self,
+            npz_filepath: str,
+            csv_filepath: str,
+            kinematic_variables: str = "velocity",
+            thermodynamic_variables: str = "density",
+        ) -> None:
+            _ = (
+                npz_filepath,
+                csv_filepath,
+                kinematic_variables,
+                thermodynamic_variables,
+            )
+
+        def get_active_npz_field_names(self) -> list[str]:
+            return ["dummy"]
+
+        def get_active_hydro_field_names(self) -> list[str]:
+            return ["dummy"]
+
+        def get_channel_map(self) -> list[int]:
+            return [0]
+
+    monkeypatch.setattr(m, "LabeledData", FakeLabeledData)
+    monkeypatch.setattr(m, "import_img_from_npz", lambda npz, fld: np.ones((2, 2)))
+    monkeypatch.setattr(
+        m,
+        "process_channel_data",
+        lambda cm, imgs, names: (cm, imgs, names),
+    )
+
+    ds = m.SequentialDataSet(
+        npz_dir=str(npz_dir),
+        csv_filepath=str(csv),
+        file_prefix_list=str(prefix_file),
+        seq_len=2,
+        timeIDX_offset=1,
+        half_image=True,
+        kinematic_variables="velocity",
+        thermodynamic_variables="density",
+    )
+
+    assert len(ds) == 1
+
+    img_seq, dt, cm = ds[0]
+    assert isinstance(img_seq, torch.Tensor)
+    assert img_seq.shape == (2, 1, 2, 2)
+    assert dt.item() == pytest.approx(0.25)
+    assert cm == [0]
+
 def test_temporal_dataset_flyerplate_channel_map_matches_default_vars(
     tmp_path: pathlib.Path,
 ) -> None:

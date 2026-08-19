@@ -591,6 +591,18 @@ class LabeledData:
         return list(self.active_npz_field_names)
 
 
+def resolve_npz_path(npz_dir: str | Path, prefix: str, filename: str) -> Path:
+    """Resolve an NPZ path for either nested or flat dataset layouts."""
+    npz_dir = Path(npz_dir)
+
+    nested = npz_dir / prefix / filename
+    if nested.is_file():
+        return nested
+
+    flat = npz_dir / filename
+    return flat
+
+
 def process_channel_data(
     channel_map: list[int],
     img_list_combined: np.ndarray,
@@ -731,8 +743,8 @@ class TemporalDataSet(Dataset[_TemporalSample]):
                 start_file = f"{file_prefix}_pvi_idx{start_idx:05d}.npz"
                 end_file = f"{file_prefix}_pvi_idx{end_idx:05d}.npz"
 
-                start_file_path = Path(self.npz_dir) / file_prefix / start_file
-                end_file_path = Path(self.npz_dir) / file_prefix / end_file
+                start_file_path = resolve_npz_path(self.npz_dir, file_prefix, start_file)
+                end_file_path = resolve_npz_path(self.npz_dir, file_prefix, end_file)
 
                 if not (start_file_path.is_file() and end_file_path.is_file()):
                     attempt += 1
@@ -890,7 +902,7 @@ class TemporalDataSet(Dataset[_TemporalSample]):
 
         for start_idx in candidates[:5]:
             start_file = f"{prefix}_pvi_idx{start_idx:05d}.npz"
-            start_fp = Path(self.npz_dir) / prefix / start_file
+            start_fp = resolve_npz_path(self.npz_dir, prefix, start_file)
             if not start_fp.is_file():
                 continue
 
@@ -916,7 +928,8 @@ class TemporalDataSet(Dataset[_TemporalSample]):
         """Index prefixes that look usable by probing one NPZ each."""
         prefixes = list(getattr(self, "file_prefix_list", []))
         if not prefixes:
-            files = glob.glob(str(Path(self.npz_dir) / "*" / "*_pvi_idx*.npz"))
+            files = glob.glob(str(Path(self.npz_dir) / "*_pvi_idx*.npz"))
+            files += glob.glob(str(Path(self.npz_dir) / "*" / "*_pvi_idx*.npz"))
             rx = re.compile(r"_pvi_idx\d+\.npz$")
             prefixes = sorted({rx.sub("", os.path.basename(f)) for f in files})
             self.file_prefix_list = prefixes
@@ -1027,7 +1040,10 @@ class SequentialDataSet(Dataset[_SequentialSample]):
             #
             all_files = []
             for prefix in self.file_prefix_list:
-                for fpath in glob.glob(os.path.join(npz_dir, f"{prefix}*.npz")):
+                flat_files = glob.glob(os.path.join(npz_dir, f"{prefix}*.npz"))
+                nested_files = glob.glob(os.path.join(npz_dir, prefix, f"{prefix}*.npz"))
+
+                for fpath in sorted(set(flat_files + nested_files)):
                     all_files.append((prefix, fpath))
 
             #
@@ -1068,10 +1084,8 @@ class SequentialDataSet(Dataset[_SequentialSample]):
                     valid_inds_curr = [start_idx]
 
                     for t in range(1, seq_len):
-                        next_file = os.path.join(
-                            self.npz_dir,
-                            (f"{file[0]}_pvi_idx{start_idx + t * dt:05d}.npz"),
-                        )
+                        next_name = f"{file[0]}_pvi_idx{start_idx + t * dt:05d}.npz"
+                        next_file = str(resolve_npz_path(self.npz_dir, file[0], next_name))
 
                         if os.path.exists(next_file):
                             valid_inds_curr.append(start_idx + t * dt)
@@ -1184,12 +1198,15 @@ class SequentialDataSet(Dataset[_SequentialSample]):
         timeIDX_offset = valid_inds[1] - valid_inds[0]
 
         valid_seq = [
-            os.path.join(
-                self.npz_dir,
-                self.filename_format.format(
-                    prefix=valid_prefix,
-                    time_index=t_ind,
-                ),
+            str(
+                resolve_npz_path(
+                    self.npz_dir,
+                    valid_prefix,
+                    self.filename_format.format(
+                        prefix=valid_prefix,
+                        time_index=t_ind,
+                    ),
+                )
             )
             for t_ind in valid_inds
         ]
