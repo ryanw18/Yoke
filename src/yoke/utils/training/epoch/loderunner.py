@@ -8,8 +8,13 @@ from contextlib import nullcontext
 from yoke.utils.training.datastep.loderunner import (
     train_loderunner_datastep,
     eval_loderunner_datastep,
+    eval_loderunner_datastep_cylex,
     train_scheduled_loderunner_datastep,
     eval_scheduled_loderunner_datastep,
+    train_DDP_loderunner_datastep,
+    eval_DDP_loderunner_datastep,
+    train_DDP_loderunner_datastep_cylex,
+    eval_DDP_loderunner_datastep_cylex
 )
 
 DATASTEP_FN = {
