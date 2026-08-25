@@ -53,13 +53,6 @@ parser.add_argument(
     help="Maximum time offset for input/output image pairs.",
 )
 
-parser.add_argument(
-    "--num_diffusion_steps",
-    type=int,
-    default=50,
-    help="Number of diffusion steps for sampling during validation.",
-)
-
 # Change some default filepaths
 parser.set_defaults(
     train_filelist="lsc240420_prefixes_train_80pct.txt",
