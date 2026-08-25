@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# This is a setup for GPU training on Venado. Find out how much
-# memory per node, number of CPUs/node.
-
 # NOTE: Number of CPUs per GPU must be an even number since there are
 # 2 threads per core. If an odd number is requested the next higher
 # even number gets used. 
