@@ -458,7 +458,7 @@ if __name__ == "__main__":
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("Torch Device:", device)
-    
+
     default_vars = [
         "cu_pressure",
         "cu_density",
