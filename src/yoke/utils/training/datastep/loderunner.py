@@ -238,13 +238,13 @@ def train_DDP_loderunner_datastep_cylex(
     """A DDP-compatible training step for multi-input, multi-output data.
 
     Args:
-    data (tuple): tuple of model input, corresponding ground truth, and lead time
-    model (loaded pytorch model): model to train
-    optimizer (torch.optim): optimizer for training set
-    loss_fn (torch.nn Loss Function): loss function for training set
-    device (torch.device): device index to select
-    rank (int): Rank of device
-    world_size (int): Number of total DDP processes
+        data (tuple): tuple of model input, corresponding ground truth, and lead time
+        model (loaded pytorch model): model to train
+        optimizer (torch.optim): optimizer for training set
+        loss_fn (torch.nn Loss Function): loss function for training set
+        device (torch.device): device index to select
+        rank (int): Rank of device
+        world_size (int): Number of total DDP processes
     """
     # Extract data
     start_img, channel_map, end_img, channel_map, Dt = data
