@@ -216,8 +216,8 @@ def test_train_DDP_loderunner_epoch(
 
     fake_ddp_train = DummyEpochStep()
     fake_ddp_eval = DummyEpochStep()
-    monkeypatch.setattr(epoch_mod, "train_loderunner_datastep", fake_ddp_train)
-    monkeypatch.setattr(epoch_mod, "eval_loderunner_datastep", fake_ddp_eval)
+    monkeypatch.setattr(epoch_mod, "train_DDP_loderunner_datastep", fake_ddp_train)
+    monkeypatch.setattr(epoch_mod, "eval_DDP_loderunner_datastep", fake_ddp_eval)
 
     tf = str(tmp_path / "train_<epochIDX>.csv")
     vf = str(tmp_path / "val_<epochIDX>.csv")
