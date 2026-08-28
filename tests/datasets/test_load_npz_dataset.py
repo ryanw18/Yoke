@@ -937,6 +937,7 @@ def test_temporal_dataset_flyerplate_filters_missing_layers(
         "energy_layer001",
     ]
 
+
 def test_temporal_dataset_getitem_supports_nested_prefix_dirs(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: pathlib.Path,
@@ -1014,6 +1015,7 @@ def test_temporal_dataset_getitem_supports_nested_prefix_dirs(
     assert cm2.tolist() == [0]
     assert dt.item() == pytest.approx(0.25)
 
+
 def test_sequential_dataset_getitem_supports_nested_prefix_dirs(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: pathlib.Path,
@@ -1087,6 +1089,7 @@ def test_sequential_dataset_getitem_supports_nested_prefix_dirs(
     assert img_seq.shape == (2, 1, 2, 2)
     assert dt.item() == pytest.approx(0.25)
     assert cm == [0]
+
 
 def test_temporal_dataset_flyerplate_channel_map_matches_default_vars(
     tmp_path: pathlib.Path,
@@ -1218,6 +1221,7 @@ def test_temporal_dataset_flyerplate_channel_map_matches_default_vars(
 
     mapped_names = [default_vars[idx] for idx in cm1.tolist()]
     assert mapped_names == ds.active_hydro_field_names
+
 
 def test_sequential_dataset_init_with_nondefault_variable_modes(
     tmp_path: pathlib.Path,
