@@ -326,7 +326,9 @@ def test_labeled_data_invalid_kinematic_raises(tmp_path: pathlib.Path) -> None:
         _ = m.LabeledData(npz, csv, kinematic_variables="nope")
 
 
-def test_labeled_data_flyerplate_active_fields(tmp_path: pathlib.Path,) -> None:
+def test_labeled_data_flyerplate_active_fields(
+    tmp_path: pathlib.Path,
+) -> None:
     """LabeledData configures Flyerplate active fields and channel map."""
     csv = tmp_path / "flyer_design.csv"
     csv.write_text(
