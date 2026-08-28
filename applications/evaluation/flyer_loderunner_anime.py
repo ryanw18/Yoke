@@ -289,6 +289,7 @@ def prepare_flyerplate_eval_sample(
 
 MAX_FLYER_LAYERS = 6
 
+
 def flyerplate_layer_fields(prefixes: list[str]) -> list[str]:
     """Return flyerplate field names for each layer/prefix combination."""
     fields: list[str] = []
