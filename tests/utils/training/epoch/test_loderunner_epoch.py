@@ -338,6 +338,7 @@ def test_train_DDP_loderunner_epoch_pli_requires_channel_map(
     loss_fn: object,
     monkeypatch: MonkeyPatch,
 ) -> None:
+    """Verify PLI training raises a ValueError when channel_map is omitted."""
     train_loader, val_loader = simple_loaders
     model, optimizer = dummy_model_optimizer
 

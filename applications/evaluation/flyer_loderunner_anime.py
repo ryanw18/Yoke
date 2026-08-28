@@ -202,6 +202,7 @@ def loderunner_inference(
         in_vars (torch.Tensor): The list of input channels.
         out_vars (torch.Tensor): The list of channels the model should output.
         delta_t (torch.Tensor): The amount of time forward the model should predict.
+        present_vars: (list[str]): Channel-aligned field names for active variables.
 
     Returns:
         output (tuple[torch.Tensor, np.ndarray]): The predicted output and density field.
@@ -214,7 +215,10 @@ def loderunner_inference(
     return pred_img, pred_rho
 
 
-def prepare_input_images(npzfile: str, default_vars: list[str]) -> tuple[torch.Tensor, list[str]]:
+def prepare_input_images(
+    npzfile: str,
+    default_vars: list[str],
+) -> tuple[torch.Tensor, list[str]]:
     """Prepare input images from NPZ file."""
     input_img_list = []
     present_vars = []
@@ -286,6 +290,7 @@ def prepare_flyerplate_eval_sample(
 MAX_FLYER_LAYERS = 6
 
 def flyerplate_layer_fields(prefixes: list[str]) -> list[str]:
+    """Return flyerplate field names for each layer/prefix combination."""
     fields: list[str] = []
     for layer_idx in range(MAX_FLYER_LAYERS):
         layer_name = f"layer{layer_idx:03d}"
@@ -295,6 +300,7 @@ def flyerplate_layer_fields(prefixes: list[str]) -> list[str]:
 
 
 def flyer_density_indices(default_vars: list[str]) -> list[int]:
+    """Return indices of density-layer fields in the provided channel list."""
     density_idx = []
     for idx, field in enumerate(default_vars):
         if field.startswith("density_layer"):
@@ -353,7 +359,7 @@ if __name__ == "__main__":
         available_models=available_models,
         device=torch.device("cpu"),
     )
-    
+
     model.eval()
 
     default_vars = [
@@ -392,11 +398,11 @@ if __name__ == "__main__":
         raise RuntimeError("Need at least two NPZ frames for flyerplate comparison.")
 
     initial_file = npz_list[0]
-    initial_img, initial_present_vars, initial_channel_map = prepare_flyerplate_eval_sample(
-        initial_file,
-        csv_filepath,
-        thermodynamic_variables="density",
-        kinematic_variables="velocity",
+    initial_img, initial_present_vars, initial_channel_map = (
+        prepare_flyerplate_eval_sample(
+            initial_file,
+            csv_filepath,
+        )
     )
     initial_time = scalarPVIarray(initial_file, "sim_time")
 
@@ -423,11 +429,11 @@ if __name__ == "__main__":
 
         if mode == "single":
             input_file = npz_list[k - 1]
-            input_img, input_present_vars, input_channel_map = prepare_flyerplate_eval_sample(
-                input_file,
-                csv_filepath,
-                thermodynamic_variables="density",
-                kinematic_variables="velocity",
+            input_img, input_present_vars, input_channel_map = (
+                prepare_flyerplate_eval_sample(
+                    input_file,
+                    csv_filepath,
+                )
             )
             input_time = scalarPVIarray(input_file, "sim_time")
             Dt = torch.tensor([simtime - input_time], dtype=torch.float32)
@@ -554,4 +560,4 @@ if __name__ == "__main__":
         plt.close()
 
         if num_pngs is not None and k >= num_pngs:
-            break   
+            break
