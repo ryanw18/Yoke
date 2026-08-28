@@ -310,8 +310,7 @@ class LabeledData:
         self.active_hydro_field_names: list[str] = []
 
         self.configure_study()
-    
-    
+
     def configure_study(self) -> None:
         """Dispatch study-specific hydro field configuration."""
         if self.study == "cx":
@@ -322,7 +321,7 @@ class LabeledData:
             raise ValueError(
                 "Hydro field information unavailable for specified dataset/study."
             )
-    
+
     def configure_cylex(self) -> None:
         """Configure hydro field definitions for the cylex dataset."""
         self.all_hydro_field_names = [
@@ -375,7 +374,7 @@ class LabeledData:
         ]
         self.channel_map = list(range(len(self.all_hydro_field_names)))
         self.cylex_data_loader()
-    
+
     def configure_flyerplate(self) -> None:
         """Configure hydro field definitions for the flyerplate dataset."""
         self.all_hydro_field_names = [
@@ -399,7 +398,7 @@ class LabeledData:
                     "density",
                     "energy",
                     "plst_strain",
-                    "pressure",                                                                                                                                             
+                    "pressure",
                     "shear_modulus",
                     "sound_speed",
                     "strain_rate",
@@ -552,7 +551,7 @@ class LabeledData:
             self.active_hydro_field_names.extend(energy_fields)
 
         self.channel_map = self.get_active_hydro_indices()
-    
+
     @staticmethod
     def flyerplate_layer_fields(prefixes: list[str]) -> list[str]:
         """Return Flyerplate layer fields for all supported layer indices."""
@@ -1085,7 +1084,9 @@ class SequentialDataSet(Dataset[_SequentialSample]):
 
                     for t in range(1, seq_len):
                         next_name = f"{file[0]}_pvi_idx{start_idx + t * dt:05d}.npz"
-                        next_file = str(resolve_npz_path(self.npz_dir, file[0], next_name))
+                        next_file = str(
+                            resolve_npz_path(self.npz_dir, file[0], next_name)
+                        )
 
                         if os.path.exists(next_file):
                             valid_inds_curr.append(start_idx + t * dt)
