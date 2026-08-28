@@ -553,9 +553,7 @@ if __name__ == "__main__":
 
         # Save images
         fig1.savefig(
-            os.path.join(
-                outdir, f"loderunner_prediction_{runID}_idx{pviIDX:05d}.png"
-            ),
+            os.path.join(outdir, f"loderunner_prediction_{runID}_idx{pviIDX:05d}.png"),
             bbox_inches="tight",
         )
         plt.close()
